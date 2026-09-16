@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#111827" />
+  <meta name="description" content="Wallet Connect — portefeuille et transferts" />
+  <title>Wallet Connect</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <style>
+    :root{font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#111827;background:#f5f7fb}
+    *{box-sizing:border-box}body{margin:0}button,input{font:inherit}.app{min-height:100vh}.shell{width:min(1100px,100%);margin:auto;padding:20px}.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}.brand{font-weight:800;font-size:22px}.badge{font-size:12px;padding:6px 10px;border-radius:999px;background:#e8eefc;color:#334155}.hero{background:#111827;color:#fff;border-radius:24px;padding:24px;margin-bottom:16px}.hero small{opacity:.7}.balance{font-size:38px;font-weight:800;margin:8px 0 18px}.actions{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.actions button,.nav button{border:0;border-radius:14px;padding:13px;cursor:pointer}.actions button{background:#fff;color:#111827;font-weight:700}.grid{display:grid;grid-template-columns:1.3fr .7fr;gap:16px}.card{background:#fff;border:1px solid #e8ebf0;border-radius:20px;padding:18px}.card h2{font-size:17px;margin:0 0 14px}.tx{display:flex;justify-content:space-between;gap:12px;padding:14px 0;border-bottom:1px solid #edf0f4}.tx:last-child{border-bottom:0}.muted{color:#64748b;font-size:13px}.positive{color:#059669;font-weight:700}.negative{color:#dc2626;font-weight:700}.nav{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-top:16px}.nav button{background:#fff;border:1px solid #e5e7eb;color:#334155}.nav button.active{background:#111827;color:#fff}.panel{display:none;margin-top:16px}.panel.active{display:block}.form{display:grid;gap:12px}.form input{width:100%;padding:13px;border:1px solid #d9dee7;border-radius:12px}.primary{background:#111827;color:#fff;border:0;border-radius:12px;padding:13px;font-weight:700;cursor:pointer}.notice{padding:12px;border-radius:12px;background:#fff7ed;color:#9a3412;font-size:13px;margin-top:12px}.admin{margin-top:16px}.footer{text-align:center;color:#94a3b8;font-size:12px;padding:28px 0}
+    @media(max-width:700px){.shell{padding:14px}.grid{grid-template-columns:1fr}.actions{grid-template-columns:1fr 1fr 1fr}.nav{grid-template-columns:repeat(3,1fr)}.balance{font-size:32px}.top{margin-bottom:12px}}
+  </style>
+</head>
+<body>
+<div class="app"><main class="shell">
+  <header class="top"><div class="brand">Wallet Connect</div><div class="badge">MVP • Test</div></header>
+  <section class="hero"><small>Solde disponible</small><div class="balance" id="balance">0 FCFA</div><div class="actions"><button onclick="showPanel('send')">Envoyer</button><button onclick="showPanel('topup')">Recharger</button><button onclick="showPanel('withdraw')">Retirer</button></div></section>
+  <div class="grid">
+    <section class="card"><h2>Dernières transactions</h2><div id="transactions"><div class="tx"><div><strong>Aucune transaction</strong><div class="muted">Ton historique apparaîtra ici.</div></div><span>—</span></div></div></section>
+    <section class="card"><h2>Ton portefeuille</h2><div class="muted">Devise principale</div><strong>FCFA (XOF)</strong><div style="height:12px"></div><div class="muted">Frais</div><strong>Configurables par l'administrateur</strong></section>
+  </div>
+  <nav class="nav"><button class="active" onclick="showPanel('home',this)">Accueil</button><button onclick="showPanel('send',this)">Envoyer</button><button onclick="showPanel('topup',this)">Recharger</button><button onclick="showPanel('withdraw',this)">Retirer</button><button onclick="showPanel('history',this)">Transactions</button><button onclick="showPanel('profile',this)">Profil</button></nav>
+  <section id="send" class="panel card"><h2>Envoyer de l'argent</h2><form class="form" onsubmit="demoTransfer(event)"><input id="recipient" required placeholder="Téléphone ou identifiant du destinataire"/><input id="sendAmount" type="number" min="1" required placeholder="Montant en FCFA"/><button class="primary">Confirmer le transfert</button></form><div class="notice">Mode démo : le vrai transfert sera branché au backend Neon avant les tests réels.</div></section>
+  <section id="topup" class="panel card"><h2>Recharger</h2><form class="form" onsubmit="demoAction(event,'Recharge')"><input type="number" min="1" required placeholder="Montant en FCFA"/><button class="primary">Continuer avec Moneroo</button></form><div class="notice">Moneroo sera appelé uniquement depuis le backend sécurisé.</div></section>
+  <section id="withdraw" class="panel card"><h2>Retirer</h2><form class="form" onsubmit="demoAction(event,'Retrait')"><input type="number" min="1" required placeholder="Montant en FCFA"/><input required placeholder="Numéro MTN"/><button class="primary">Demander le retrait</button></form><div class="notice">Le retrait MTN doit d'abord être confirmé comme disponible sur ton compte Moneroo pour le pays concerné.</div></section>
+  <section id="history" class="panel card"><h2>Historique</h2><div class="muted">Les opérations réelles seront chargées depuis Neon.</div></section>
+  <section id="profile" class="panel card"><h2>Profil</h2><div class="form"><input placeholder="Nom"/><input placeholder="Téléphone"/><button class="primary" onclick="alert('Profil démo')">Enregistrer</button></div></section>
+  <section class="admin card"><h2>Admin — aperçu</h2><div class="muted">Utilisateurs • Wallets • Transferts • Recharges • Retraits • Frais • Moyens de paiement</div></section>
+  <div class="footer">Wallet Connect — prototype MVP</div>
+</main></div>
+<script>
+let balance=0;
+function showPanel(id,btn){document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));if(id!=='home')document.getElementById(id)?.classList.add('active');document.querySelectorAll('.nav button').forEach(x=>x.classList.remove('active'));if(btn)btn.classList.add('active');}
+function demoTransfer(e){e.preventDefault();const amount=Number(document.getElementById('sendAmount').value);if(amount>balance){alert('Solde insuffisant en mode démo.');return}balance-=amount;renderBalance();addTx('Transfert envoyé','-'+amount.toLocaleString('fr-FR')+' FCFA','negative');e.target.reset();alert('Transfert démo enregistré.');}
+function demoAction(e,label){e.preventDefault();alert(label+' démo : le backend sécurisé sera connecté à cette action.');e.target.reset();}
+function addTx(label,value,cls){const box=document.getElementById('transactions');if(box.textContent.includes('Aucune transaction'))box.innerHTML='';box.insertAdjacentHTML('afterbegin',`<div class="tx"><div><strong>${label}</strong><div class="muted">À l'instant</div></div><span class="${cls||''}">${value}</span></div>`);}
+function renderBalance(){document.getElementById('balance').textContent=balance.toLocaleString('fr-FR')+' FCFA'}
+renderBalance();
+</script>
+</body></html>
