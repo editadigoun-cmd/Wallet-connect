@@ -15,7 +15,7 @@
 </head>
 <body>
 <div class="app"><main class="shell">
-  <header class="top"><div class="brand">Wallet Connect</div><div class="badge">MVP • Test</div></header>
+  <header class="top"><div class="brand">Wallet Connect</div><div class="badge">MVP • PawaPay</div></header>
   <section class="hero"><small>Solde disponible</small><div class="balance" id="balance">0 FCFA</div><div class="actions"><button onclick="showPanel('send')">Envoyer</button><button onclick="showPanel('topup')">Recharger</button><button onclick="showPanel('withdraw')">Retirer</button></div></section>
   <div class="grid">
     <section class="card"><h2>Dernières transactions</h2><div id="transactions"><div class="tx"><div><strong>Aucune transaction</strong><div class="muted">Ton historique apparaîtra ici.</div></div><span>—</span></div></div></section>
@@ -23,12 +23,12 @@
   </div>
   <nav class="nav"><button class="active" onclick="showPanel('home',this)">Accueil</button><button onclick="showPanel('send',this)">Envoyer</button><button onclick="showPanel('topup',this)">Recharger</button><button onclick="showPanel('withdraw',this)">Retirer</button><button onclick="showPanel('history',this)">Transactions</button><button onclick="showPanel('profile',this)">Profil</button></nav>
   <section id="send" class="panel card"><h2>Envoyer de l'argent</h2><form class="form" onsubmit="demoTransfer(event)"><input id="recipient" required placeholder="Téléphone ou identifiant du destinataire"/><input id="sendAmount" type="number" min="1" required placeholder="Montant en FCFA"/><button class="primary">Confirmer le transfert</button></form><div class="notice">Mode démo : le vrai transfert sera branché au backend Neon avant les tests réels.</div></section>
-  <section id="topup" class="panel card"><h2>Recharger</h2><form class="form" onsubmit="demoAction(event,'Recharge')"><input type="number" min="1" required placeholder="Montant en FCFA"/><button class="primary">Continuer avec Moneroo</button></form><div class="notice">Moneroo sera appelé uniquement depuis le backend sécurisé.</div></section>
-  <section id="withdraw" class="panel card"><h2>Retirer</h2><form class="form" onsubmit="demoAction(event,'Retrait')"><input type="number" min="1" required placeholder="Montant en FCFA"/><input required placeholder="Numéro MTN"/><button class="primary">Demander le retrait</button></form><div class="notice">Le retrait MTN doit d'abord être confirmé comme disponible sur ton compte Moneroo pour le pays concerné.</div></section>
+  <section id="topup" class="panel card"><h2>Recharger</h2><form class="form" onsubmit="demoAction(event,'Recharge')"><input type="number" min="1" required placeholder="Montant en FCFA"/><button class="primary">Continuer avec PawaPay</button></form><div class="notice">PawaPay sera appelé uniquement depuis le backend sécurisé. Le token PawaPay ne sera jamais exposé dans l'application.</div></section>
+  <section id="withdraw" class="panel card"><h2>Retirer</h2><form class="form" onsubmit="demoAction(event,'Retrait')"><input type="number" min="1" required placeholder="Montant en FCFA"/><input required placeholder="Numéro MTN"/><button class="primary">Demander le retrait</button></form><div class="notice">Le retrait passe par PawaPay. La disponibilité exacte de l'opérateur et les limites dépendent du pays et de la configuration de ton compte PawaPay.</div></section>
   <section id="history" class="panel card"><h2>Historique</h2><div class="muted">Les opérations réelles seront chargées depuis Neon.</div></section>
   <section id="profile" class="panel card"><h2>Profil</h2><div class="form"><input placeholder="Nom"/><input placeholder="Téléphone"/><button class="primary" onclick="alert('Profil démo')">Enregistrer</button></div></section>
   <section class="admin card"><h2>Admin — aperçu</h2><div class="muted">Utilisateurs • Wallets • Transferts • Recharges • Retraits • Frais • Moyens de paiement</div></section>
-  <div class="footer">Wallet Connect — prototype MVP</div>
+  <div class="footer">Wallet Connect — MVP • PawaPay</div>
 </main></div>
 <script>
 let balance=0;
