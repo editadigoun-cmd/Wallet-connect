@@ -183,7 +183,7 @@ async function createTopup(request,user) {
     const ins=await client.query(`INSERT INTO public.topups(reference,wallet_id,amount,fee_amount,currency,provider,status,payment_method,metadata,idempotency_key,provider_reference)
       VALUES ($1,$2,$3,0,$4,$5,'pending','MTN_MOBILE_MONEY',$6,$7,$8) RETURNING *`,
       [ref,wallet.rows[0].id,amount,currency,provider,JSON.stringify({phone,provider,country}),key,providerReference]);
-    row=ins.rows[0]; await client.query("COMMIT");
+    row=ins.rows[0]; await client.query("UPDATE public.topups SET payment_method=$1 WHERE id=$2",[selected.displayName||provider,row.id]); await client.query("COMMIT");
   } catch(e){await client.query("ROLLBACK");client.release();throw e} client.release();
   const p=await pawapay("/deposits","POST",{
     depositId:row.provider_reference, amount:String(amount), currency,
@@ -217,8 +217,8 @@ async function topupStatus(request,user,reference) {
         await c.query("UPDATE public.wallets SET balance=$1,updated_at=now() WHERE id=$2",[after,row.wallet_id]);
         await c.query("UPDATE public.topups SET status='successful',completed_at=now(),metadata=metadata || $1::jsonb WHERE id=$2",[JSON.stringify({pawapay_status:providerStatus}),row.id]);
         await c.query(`INSERT INTO public.transactions(reference,wallet_id,type,direction,amount,currency,balance_before,balance_after,status,description,metadata,completed_at)
-          VALUES ($1,$2,'topup','credit',$3,$4,$5,$6,'successful','Recharge MTN',$7,now())`,
-          ["TX-"+crypto.randomUUID(),row.wallet_id,row.amount,row.currency,before,after,JSON.stringify({topup_id:row.id,provider_reference:row.provider_reference})]);
+          VALUES ($1,$2,'topup','credit',$3,$4,$5,$6,'successful',$7,$8,now())`,
+          ["TX-"+crypto.randomUUID(),row.wallet_id,row.amount,row.currency,before,after,selected.displayName||row.provider,JSON.stringify({topup_id:row.id,provider_reference:row.provider_reference,provider:row.provider})]);
       }
       await c.query("COMMIT");
     }catch(e){await c.query("ROLLBACK");throw e}finally{c.release();}
@@ -279,7 +279,7 @@ async function withdraw(request,user) {
       VALUES($1,$2,$3,0,$4,$5,'processing','mobile_money',$6,$7,$8,$9) RETURNING *`,[ref,w.rows[0].id,amount,currency,provider,phone,JSON.stringify({provider,country}),key,providerReference]);
     await c.query("UPDATE public.wallets SET balance=balance-$1,updated_at=now() WHERE id=$2",[amount,w.rows[0].id]); const after=before-amount;
     await c.query(`INSERT INTO public.transactions(reference,wallet_id,type,direction,amount,currency,balance_before,balance_after,status,description,metadata)
-      VALUES($1,$2,'withdrawal','debit',$3,$4,$5,$6,'pending','Retrait MTN',$7)`,["TX-"+crypto.randomUUID(),w.rows[0].id,amount,currency,before,after,JSON.stringify({withdrawal_id:ins.rows[0].id})]);
+      VALUES($1,$2,'withdrawal','debit',$3,$4,$5,$6,'pending',$7,$8)`,["TX-"+crypto.randomUUID(),w.rows[0].id,amount,currency,before,after,selected.displayName||provider,JSON.stringify({withdrawal_id:ins.rows[0].id,provider})]);
     await c.query("COMMIT"); row=ins.rows[0];
   }catch(e){await c.query("ROLLBACK");c.release();throw e} c.release();
   const p=await pawapay("/payouts","POST",{payoutId:row.provider_reference,amount:String(amount),currency:row.currency,recipient:{type:"MMO",accountDetails:{phoneNumber:row.destination_account,provider:row.provider}},customerMessage:"Retrait Wallet",clientReferenceId:row.reference,metadata:[{fieldName:"walletConnectReference",fieldValue:row.reference}]});
