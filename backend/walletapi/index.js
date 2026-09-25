@@ -132,8 +132,11 @@ async function createTopup(request,user) {
   } catch(e){await client.query("ROLLBACK");client.release();throw e} client.release();
   const p=await pawapay("/deposits","POST",{
     depositId:row.provider_reference, amount:String(amount), currency,
-    payer:{type:"MMO",accountDetails:{phoneNumber:phone,provider}},
-    customerMessage:"Recharge Wallet",
+    correspondent:provider,
+    payer:{type:"MSISDN",address:{value:phone}},
+    customerTimestamp:new Date().toISOString(),
+    statementDescription:"Recharge Wallet",
+    country:COUNTRY_ISO3[country]||country,
     metadata:[{fieldName:"walletConnectReference",fieldValue:row.reference}]
   });
   const providerStatus=String(p.data?.status||"").toUpperCase();
