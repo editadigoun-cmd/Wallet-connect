@@ -14,15 +14,16 @@ jobs:
       NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
       PAWAPAY_API_TOKEN: ${{ secrets.PAWAPAY_API_TOKEN }}
     steps:
-      - name: Install Neon CLI
-        run: npm install -g neonctl
-
-      - name: Inject PawaPay production secret into Neon Function
+      - name: Inject PawaPay production secret into existing Neon Function
+        shell: bash
         run: |
+          set -euo pipefail
           test -n "$NEON_API_KEY"
           test -n "$PAWAPAY_API_TOKEN"
-          neonctl functions deploy walletapi \
-            --project-id green-violet-58373553 \
-            --branch br-fragrant-moon-b4qxibei \
-            --api-key "$NEON_API_KEY" \
-            --env "PAWAPAY_API_TOKEN=$PAWAPAY_API_TOKEN"
+          ENV_JSON=$(jq -cn --arg token "$PAWAPAY_API_TOKEN" '{PAWAPAY_API_TOKEN:$token}')
+          BODY=$(jq -cn --arg env "$ENV_JSON" '{environment:$env}')
+          curl --fail-with-body -sS -X POST \
+            "https://console.neon.tech/api/v2/projects/green-violet-58373553/branches/br-fragrant-moon-b4qxibei/functions/walletapi/deployments" \
+            -H "Authorization: Bearer $NEON_API_KEY" \
+            -H "Content-Type: application/json" \
+            --data "$BODY"
