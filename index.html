@@ -29,7 +29,7 @@
   <div class="section-head"><h2>Activité récente</h2><button class="link" type="button" data-screen="activity">Voir tout</button></div>
   <div class="card" id="homeTransactions"><div class="empty">Aucune transaction pour le moment</div></div>
   <div class="grid" style="margin-top:16px">
-    <div class="card"><div class="section-head" style="margin-top:0"><h2>Mon portefeuille</h2></div><div class="mini-stat"><div><strong>Devise</strong><span>Solde principal</span></div><strong id="walletCurrency">XOF</strong></div><div class="mini-stat"><div><strong>Frais d'envoi</strong><span>Configuration actuelle</span></div><strong>1%</strong></div><div class="mini-stat"><div><strong>Retrait</strong><span>Frais plateforme</span></div><strong id="withdrawFee">0 XOF</strong></div></div>
+    <div class="card"><div class="section-head" style="margin-top:0"><h2>Mon portefeuille</h2></div><div class="mini-stat"><div><strong>Devise</strong><span>Solde principal</span></div><strong id="walletCurrency">XOF</strong></div><div class="mini-stat"><div><strong>Frais d'envoi</strong><span>Configuration actuelle</span></div><strong id="homeTransferFee">—</strong></div><div class="mini-stat"><div><strong>Retrait</strong><span>Frais plateforme</span></div><strong id="withdrawFee">0 XOF</strong></div></div>
     <div class="card"><div class="section-head" style="margin-top:0"><h2>Besoin d'aide ?</h2></div><p class="muted" style="line-height:1.6">Consulte les informations du service et les moyens de paiement disponibles dans ton pays.</p><button class="secondary" type="button" data-screen="profile">Mon profil</button></div>
   </div>
 </section>
@@ -41,7 +41,7 @@
       <div class="field"><label>Destinataire</label><input id="recipient" required placeholder="Téléphone ou identifiant"></div>
       <div class="recipient"><div class="recipient-avatar" id="recipientAvatar">?</div><div><strong id="recipientName">Destinataire</strong><div class="muted">Utilisateur Wallet Connect</div></div></div>
       <div class="field"><label>Montant</label><div class="amount-big"><input id="sendAmount" type="number" min="1" required placeholder="0"></div></div>
-      <div class="mini-stat"><div><strong>Frais d'envoi</strong><span>1% du montant</span></div><strong id="sendFee">0 XOF</strong></div>
+      <div class="mini-stat"><div><strong>Frais d'envoi</strong><span id="sendFeeLabel">Configuration actuelle</span></div><strong id="sendFee">0 XOF</strong></div>
       <div class="mini-stat"><div><strong>Total débité</strong><span>Montant + frais</span></div><strong id="sendTotal">0 XOF</strong></div>
       <button class="primary" type="submit">Continuer</button>
       <div class="notice">Le transfert réel sera exécuté par le backend sécurisé. Aucun secret PawaPay n'est stocké dans cette interface.</div>
