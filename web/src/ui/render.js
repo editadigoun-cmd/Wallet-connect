@@ -49,5 +49,28 @@ function renderTx(id,limit){
   else if(f==="topup")tx=tx.filter(t=>t.type==="topup");
   else if(f==="withdrawal")tx=tx.filter(t=>t.type==="withdrawal");
   if(!tx.length){box.innerHTML='<div class="empty">Aucune transaction pour ce filtre</div>';return}
-  box.innerHTML=tx.slice(0,limit).map(t=>{const positive=t.direction==="credit";return '<div class="tx"><div class="txicon">'+(positive?"＋":"↗")+'</div><div class="txmain"><strong>'+escapeHtml(t.description||t.type)+'</strong><span>'+new Date(t.created_at).toLocaleString("fr-FR")+" • "+escapeHtml(t.status)+'</span></div><div class="txamount '+(positive?"positive":"negative")+'">'+(positive?"+":"−")+money(t.amount,t.currency||state.meData?.currency||"XAF")+'</div></div>'}).join("")
+  box.innerHTML=tx.slice(0,limit).map(t=>{const positive=t.direction==="credit";return '<button type="button" class="tx tx-button" data-tx-ref="'+escapeHtml(t.reference||"")+'"><div class="txicon">'+(positive?"＋":"↗")+'</div><div class="txmain"><strong>'+escapeHtml(t.description||t.type)+'</strong><span>'+new Date(t.created_at).toLocaleString("fr-FR")+" • "+escapeHtml(t.status)+'</span></div><div class="txamount '+(positive?"positive":"negative")+'">'+(positive?"+":"−")+money(t.amount,t.currency||state.meData?.currency||"XAF")+'</div></button>'}).join("");
+  box.querySelectorAll("[data-tx-ref]").forEach(el=>el.addEventListener("click",()=>openTransaction(el.dataset.txRef)));
 }
+async function openTransaction(reference){
+  if(!reference)return;
+  const dialog=document.getElementById("txDetailDialog"),content=document.getElementById("txDetailContent");
+  if(!dialog||!content)return;
+  content.innerHTML="<p class='muted'>Chargement…</p>";
+  if(typeof dialog.showModal==="function")dialog.showModal();else dialog.setAttribute("open","");
+  try{
+    const {api}=await import("../api/client.js");
+    const d=await api("/transactions/"+encodeURIComponent(reference));
+    const t=d.transaction||{};
+    const positive=t.direction==="credit";
+    const currency=t.currency||state.meData?.currency||"XAF";
+    content.innerHTML=
+      '<div class="tx-detail-row"><span>Référence</span><strong>'+escapeHtml(t.reference||"—")+'</strong></div>'+
+      '<div class="tx-detail-row"><span>Type</span><strong>'+escapeHtml(t.description||t.type||"—")+'</strong></div>'+
+      '<div class="tx-detail-row"><span>Montant</span><strong class="'+(positive?"positive":"negative")+'">'+(positive?"+":"−")+money(t.amount,currency)+'</strong></div>'+
+      '<div class="tx-detail-row"><span>Statut</span><strong>'+escapeHtml(t.status||"—")+'</strong></div>'+
+      '<div class="tx-detail-row"><span>Date</span><strong>'+escapeHtml(t.created_at?new Date(t.created_at).toLocaleString("fr-FR"):"—")+'</strong></div>'+
+      (t.completed_at?'<div class="tx-detail-row"><span>Terminée le</span><strong>'+escapeHtml(new Date(t.completed_at).toLocaleString("fr-FR"))+'</strong></div>':"");
+  }catch(e){content.innerHTML='<p class="muted">'+escapeHtml(e.message||"Impossible de charger le détail.")+'</p>';}
+}
+document.getElementById("closeTxDetail")?.addEventListener("click",()=>document.getElementById("txDetailDialog")?.close());
