@@ -170,12 +170,31 @@ async function activePaymentMethod(country){
   const p=providers[0];
   return p?{country_code:country,provider:p.correspondent,method_code:p.correspondent,currency:p.currency}:null;
 }
+async function feeConfig(operation,country,currency){
+  const q=await pool.query(
+    `SELECT fee_type,fee_value FROM public.fee_settings
+     WHERE operation=$1 AND active=true AND currency=$2
+       AND (country_code=$3 OR country_code IS NULL)
+     ORDER BY CASE WHEN country_code=$3 THEN 0 ELSE 1 END LIMIT 1`,
+    [operation,currency,country]
+  );
+  return q.rows[0]||null;
+}
+function calculateFee(amount,config){
+  if(!config)return 0;
+  const value=Number(config.fee_value||0);
+  if(config.fee_type==="percentage")return Math.round(amount*value/100);
+  return Math.max(0,Math.round(value));
+}
 async function createTopup(request,user) {
   const b=await body(request), amount=amountInt(b.amount), country=String(user.country_code||DEFAULT_COUNTRY).toUpperCase(), phone=normalizePhone(b.phone,country), requestedProvider=String(b.provider||"").trim();
   if(!amount||!phone)return bad("Montant et numéro MTN requis");
   const key=idempotency(request,"topup-"+crypto.randomUUID()), providers=await availableProviders(country,"DEPOSIT"), requested=providers.find(x=>x.correspondent===requestedProvider), selected=requested||providers[0];
   if(!selected)return bad("Aucun moyen de recharge disponible pour ce pays");
   const provider=selected.correspondent, currency=selected.currency||COUNTRY_CURRENCY[country]||DEFAULT_CURRENCY;
+  const fee=await feeConfig("topup",country,currency);
+  const feeAmount=calculateFee(amount,fee);
+  const totalCharge=amount+feeAmount;
   const depositConfig=operationType(selected,"DEPOSIT")||{};
   const minDeposit=Number(depositConfig.minTransactionLimit||0),maxDeposit=Number(depositConfig.maxTransactionLimit||0);
   if(minDeposit&&amount<minDeposit)return bad("Le montant minimum pour ce moyen est "+minDeposit+" "+currency);
@@ -189,13 +208,13 @@ async function createTopup(request,user) {
     if(!wallet.rows[0])throw new Error("Portefeuille introuvable");
     const ref="TOP-"+crypto.randomUUID(), providerReference=crypto.randomUUID();
     const ins=await client.query(`INSERT INTO public.topups(reference,wallet_id,amount,fee_amount,currency,provider,status,payment_method,metadata,idempotency_key,provider_reference)
-      VALUES ($1,$2,$3,0,$4,$5,'pending','MTN_MOBILE_MONEY',$6,$7,$8) RETURNING *`,
-      [ref,wallet.rows[0].id,amount,currency,provider,JSON.stringify({phone,provider,country,provider_name:selected.displayName||provider}),key,providerReference]);
+      VALUES ($1,$2,$3,$4,$5,$6,'pending','MTN_MOBILE_MONEY',$7,$8,$9) RETURNING *`,
+      [ref,wallet.rows[0].id,amount,feeAmount,currency,provider,JSON.stringify({phone,provider,country,provider_name:selected.displayName||provider,fee_type:fee?.fee_type||null,fee_rate:fee?.fee_value||0,total_charge:totalCharge}),key,providerReference]);
     row=ins.rows[0]; await client.query("UPDATE public.topups SET payment_method=$1 WHERE id=$2",[selected.displayName||provider,row.id]); await client.query("COMMIT");
   } catch(e){await client.query("ROLLBACK");client.release();throw e} client.release();
   const p=await pawapay("/deposits","POST",{
     depositId:row.provider_reference,
-    amount:String(amount),
+    amount:String(totalCharge),
     currency,
     payer:{type:"MMO",accountDetails:{provider,phoneNumber:phone}},
     customerMessage:"Recharge Wallet",
@@ -207,7 +226,7 @@ async function createTopup(request,user) {
   const status=rejected?"failed":"pending";
   await pool.query("UPDATE public.topups SET status=$1,metadata=metadata || $2::jsonb WHERE id=$3",[status,JSON.stringify({pawapay_response:p.data}),row.id]);
   if(rejected){const reason=p.data?.data?.rejectionReason||p.data?.rejectionReason||p.data?.data?.failureReason||p.data?.failureReason||{};return json({ok:false,error:reason.rejectionMessage||reason.failureMessage||"La recharge n'a pas été acceptée par le moyen de paiement sélectionné.",code:"TOPUP_REJECTED",details:reason},502);}
-  return json({ok:true,topup:{...row,status},provider_response:p.data},202);
+  return json({ok:true,topup:{...row,status},fee:{amount:feeAmount,type:fee?.fee_type||"percentage",rate:Number(fee?.fee_value||0),totalCharge},provider_response:p.data},202);
 }
 async function topupStatus(request,user,reference) {
   const q=await pool.query(`SELECT t.* FROM public.topups t JOIN public.wallets w ON w.id=t.wallet_id WHERE t.reference=$1 AND w.user_id=$2`,[reference,user.id]);
