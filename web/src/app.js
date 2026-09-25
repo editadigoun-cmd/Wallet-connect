@@ -5,7 +5,7 @@ import {fillCountries} from "./services/countries.js";
 import {toast} from "./ui/toast.js";
 import {show,initNavigation} from "./ui/navigation.js";
 import {render} from "./ui/render.js";
-import {initAuth} from "./features/auth.js";
+import {initAuth} from "./features/auth.js?v=20260925b";
 import {initWallet} from "./features/wallet.js";
 import {initTransfers} from "./features/transfers.js";
 import {initProfile} from "./features/profile.js";
