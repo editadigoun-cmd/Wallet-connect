@@ -216,6 +216,8 @@ async function transfer(request,user) {
     const r=await c.query("SELECT u.id,w.id wallet_id,u.email,u.full_name,w.currency FROM public.users u JOIN public.wallets w ON w.user_id=u.id WHERE (lower(u.email)=lower($1) OR u.phone=$1) AND u.status='active' LIMIT 1",[recipient]);
     if(!s.rows[0]||!r.rows[0])throw Object.assign(new Error("Destinataire introuvable"),{status:404});
     if(r.rows[0].id===user.id)throw new Error("Impossible de transférer vers soi-même");
+    if((s.rows[0].currency||DEFAULT_CURRENCY)!==(r.rows[0].currency||DEFAULT_CURRENCY))
+      return bad("Les transferts entre devises différentes ne sont pas encore disponibles",409,"CURRENCY_MISMATCH");
     const feeConfig=await c.query(
       `SELECT fee_type,fee_value FROM public.fee_settings
        WHERE operation='transfer' AND active=true
