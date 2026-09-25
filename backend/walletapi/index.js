@@ -304,18 +304,24 @@ async function updateProfile(request,user) {
   const country = String(b.country_code || "").trim().toUpperCase();
   const phone = normalizePhone(b.phone);
   if (!/^[A-Z]{2}$/.test(country)) return bad("Pays invalide");
-  const allowed = await pool.query("SELECT 1 FROM public.payment_methods WHERE country_code=$1 AND active=true LIMIT 1",[country]);
+  const allowed = await pool.query("SELECT 1 FROM public.payment_methods WHERE country_code=$1 AND active=true AND (supports_topup=true OR supports_withdrawal=true) LIMIT 1",[country]);
   const c = await pool.connect();
   try {
-    const r = await c.query(`UPDATE public.users SET country_code=$1, phone=COALESCE(NULLIF($2,''),phone), updated_at=now() WHERE id=$3 RETURNING id,email,full_name,phone,country_code,status,kyc_status`,[country,phone,user.id]);
+    await c.query("BEGIN");
     const wallet = await c.query(`SELECT id,balance,currency FROM public.wallets WHERE user_id=$1 FOR UPDATE`,[user.id]);
     const targetCurrency = COUNTRY_CURRENCY[country] || DEFAULT_CURRENCY;
-    if (wallet.rows[0] && wallet.rows[0].currency !== targetCurrency) {
-      if (Number(wallet.rows[0].balance) !== 0) return bad("Impossible de changer de devise avec un solde non nul",409,"CURRENCY_CHANGE_REQUIRES_ZERO_BALANCE");
-      await c.query(`UPDATE public.wallets SET currency=$1,updated_at=now() WHERE id=$2`,[targetCurrency,wallet.rows[0].id]);
+    if (wallet.rows[0] && Number(wallet.rows[0].balance) !== 0 && wallet.rows[0].currency !== targetCurrency) {
+      await c.query("ROLLBACK");
+      return bad("Impossible de changer de devise avec un solde non nul",409,"CURRENCY_CHANGE_REQUIRES_ZERO_BALANCE");
     }
+    const r = await c.query(`UPDATE public.users SET country_code=$1, phone=COALESCE(NULLIF($2,''),phone), updated_at=now() WHERE id=$3 RETURNING id,email,full_name,phone,country_code,status,kyc_status`,[country,phone,user.id]);
+    await c.query(`UPDATE public.wallets SET currency=$1,updated_at=now() WHERE user_id=$2 AND balance=0 AND currency<>$1`,[targetCurrency,user.id]);
     if (!r.rows[0]) return bad("Profil introuvable",404,"NOT_FOUND");
+    await c.query("COMMIT");
     return json({ok:true,user:r.rows[0],payment_method_available:Boolean(allowed.rows[0])});
+  } catch (e) {
+    await c.query("ROLLBACK");
+    throw e;
   } finally { c.release(); }
 }
 async function me(user) {
