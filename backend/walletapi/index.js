@@ -212,7 +212,17 @@ async function transfer(request,user) {
     const r=await c.query("SELECT u.id,w.id wallet_id,u.email,u.full_name,w.currency FROM public.users u JOIN public.wallets w ON w.user_id=u.id WHERE (lower(u.email)=lower($1) OR u.phone=$1) AND u.status='active' LIMIT 1",[recipient]);
     if(!s.rows[0]||!r.rows[0])throw Object.assign(new Error("Destinataire introuvable"),{status:404});
     if(r.rows[0].id===user.id)throw new Error("Impossible de transférer vers soi-même");
-    const fee=Math.round(amount*0.01),total=amount+fee,before=Number(s.rows[0].balance); if(before<total)throw Object.assign(new Error("Solde insuffisant"),{status:409});
+    const feeConfig=await c.query(
+      `SELECT fee_type,fee_value FROM public.fee_settings
+       WHERE operation='transfer' AND active=true
+         AND currency=$1 AND (country_code=$2 OR country_code IS NULL)
+       ORDER BY CASE WHEN country_code=$2 THEN 0 ELSE 1 END
+       LIMIT 1`,
+      [s.rows[0].currency||DEFAULT_CURRENCY, user.country_code||null]
+    );
+    const fc=feeConfig.rows[0]||{fee_type:"percentage",fee_value:0};
+    const fee=fc.fee_type==="fixed" ? Math.round(Number(fc.fee_value)||0) : Math.round(amount*(Number(fc.fee_value)||0)/100);
+    const total=amount+fee,before=Number(s.rows[0].balance); if(before<total)throw Object.assign(new Error("Solde insuffisant"),{status:409});
     const ref="TRF-"+crypto.randomUUID();
     const ins=await c.query(`INSERT INTO public.transfers(reference,sender_wallet_id,receiver_wallet_id,amount,fee_amount,currency,status,note,idempotency_key)
       VALUES($1,$2,$3,$4,$5,$6,'successful',$7,$8) RETURNING *`,[ref,s.rows[0].wallet_id,r.rows[0].wallet_id,amount,fee,s.rows[0].currency||DEFAULT_CURRENCY,b.note||null,key]);
@@ -285,7 +295,15 @@ async function me(user) {
   const r=await pool.query(`SELECT u.id,u.email,u.full_name,u.phone,u.country_code,u.status,u.kyc_status,w.id wallet_id,w.currency,w.balance FROM public.users u JOIN public.wallets w ON w.user_id=u.id WHERE u.id=$1`,[user.id]);
   if(!r.rows[0])return bad("Profil introuvable",404);
   const tx=await pool.query(`SELECT id,reference,type,direction,amount,currency,status,description,created_at FROM public.transactions WHERE wallet_id=$1 ORDER BY created_at DESC LIMIT 20`,[r.rows[0].wallet_id]);
-  return json({ok:true,user:r.rows[0],transactions:tx.rows});
+  const fee=await pool.query(
+    `SELECT fee_type,fee_value FROM public.fee_settings
+     WHERE operation='transfer' AND active=true AND currency=$1
+       AND (country_code=$2 OR country_code IS NULL)
+     ORDER BY CASE WHEN country_code=$2 THEN 0 ELSE 1 END LIMIT 1`,
+    [r.rows[0].currency||DEFAULT_CURRENCY,r.rows[0].country_code||null]
+  );
+  const transferFee=fee.rows[0]||{fee_type:"percentage",fee_value:0};
+  return json({ok:true,user:{...r.rows[0],transfer_fee_type:transferFee.fee_type,transfer_fee_value:Number(transferFee.fee_value)},transactions:tx.rows});
 }
 async function handler(request) {
   if(request.method==="OPTIONS")return new Response(null,{status:204,headers:cors()});
