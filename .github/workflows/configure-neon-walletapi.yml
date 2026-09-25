@@ -41,3 +41,9 @@ jobs:
             -F "zip=@walletapi.zip;type=application/zip" \
             -F "runtime=nodejs24" \
             -F "environment=$ENV_JSON"
+
+      - name: Verify deployed function health
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail-with-body -sS --retry 5 --retry-delay 2 "https://br-fragrant-moon-b4qxibei-walletapi.compute.c-6.us-east-2.aws.neon.tech/health"
