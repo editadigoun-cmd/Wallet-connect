@@ -20,7 +20,7 @@
 <section id="auth" class="screen active"><div class="card auth-card"><div class="auth-logo">W</div><h1 class="auth-title" id="authTitle">Connexion</h1><p class="muted" style="text-align:center;margin-bottom:18px">Accède à ton portefeuille Wallet Connect.</p><div class="auth-error" id="authError"></div><form class="form" id="authForm"><div class="field hide" id="nameField"><label>Nom complet</label><input id="authName" autocomplete="name"></div><div class="field hide" id="countryField"><label>Pays de résidence</label><select id="authCountry" class="country-select" required><option value="">Sélectionner ton pays</option></select></div><div class="field"><label>Email</label><input id="authEmail" type="email" autocomplete="email" required></div><div class="field"><label>Mot de passe</label><input id="authPassword" type="password" minlength="8" autocomplete="current-password" required></div><button class="primary" id="authSubmit" type="submit">Se connecter</button></form><div class="auth-switch"><span id="authSwitchText">Pas encore de compte ?</span> <button type="button" id="authSwitch">Créer un compte</button></div></div></section>
 <section id="home" class="screen">
   <div class="greeting"><h1>Bonjour 👋</h1><div class="muted">Voici l'état de ton portefeuille</div></div>
-  <div class="balance-card"><div class="balance-label">Solde disponible</div><div class="balance" id="balance">0 FCFA</div><div class="balance-row"><span class="currency">XAF • Principal</span><button class="eye" type="button" id="toggleBalance">◉</button></div></div>
+  <div class="balance-card"><div class="balance-label">Solde disponible</div><div class="balance" id="balance">0 FCFA</div><div class="balance-row"><span class="currency" id="balanceCurrency">XOF • Principal</span><button class="eye" type="button" id="toggleBalance">◉</button></div></div>
   <div class="quick">
     <button type="button" data-screen="send"><div class="qicon">↗</div>Envoyer</button>
     <button type="button" data-screen="wallet"><div class="qicon">＋</div>Recharger</button>
@@ -29,7 +29,7 @@
   <div class="section-head"><h2>Activité récente</h2><button class="link" type="button" data-screen="activity">Voir tout</button></div>
   <div class="card" id="homeTransactions"><div class="empty">Aucune transaction pour le moment</div></div>
   <div class="grid" style="margin-top:16px">
-    <div class="card"><div class="section-head" style="margin-top:0"><h2>Mon portefeuille</h2></div><div class="mini-stat"><div><strong>Devise</strong><span>Solde principal</span></div><strong>XAF</strong></div><div class="mini-stat"><div><strong>Frais d'envoi</strong><span>Configuration actuelle</span></div><strong>1%</strong></div><div class="mini-stat"><div><strong>Retrait</strong><span>Frais plateforme</span></div><strong>0 XAF</strong></div></div>
+    <div class="card"><div class="section-head" style="margin-top:0"><h2>Mon portefeuille</h2></div><div class="mini-stat"><div><strong>Devise</strong><span>Solde principal</span></div><strong id="walletCurrency">XOF</strong></div><div class="mini-stat"><div><strong>Frais d'envoi</strong><span>Configuration actuelle</span></div><strong>1%</strong></div><div class="mini-stat"><div><strong>Retrait</strong><span>Frais plateforme</span></div><strong id="withdrawFee">0 XOF</strong></div></div>
     <div class="card"><div class="section-head" style="margin-top:0"><h2>Besoin d'aide ?</h2></div><p class="muted" style="line-height:1.6">Consulte les informations du service et les moyens de paiement disponibles dans ton pays.</p><button class="secondary" type="button" data-screen="profile">Mon profil</button></div>
   </div>
 </section>
@@ -41,8 +41,8 @@
       <div class="field"><label>Destinataire</label><input id="recipient" required placeholder="Téléphone ou identifiant"></div>
       <div class="recipient"><div class="recipient-avatar" id="recipientAvatar">?</div><div><strong id="recipientName">Destinataire</strong><div class="muted">Utilisateur Wallet Connect</div></div></div>
       <div class="field"><label>Montant</label><div class="amount-big"><input id="sendAmount" type="number" min="1" required placeholder="0"></div></div>
-      <div class="mini-stat"><div><strong>Frais d'envoi</strong><span>1% du montant</span></div><strong id="sendFee">0 XAF</strong></div>
-      <div class="mini-stat"><div><strong>Total débité</strong><span>Montant + frais</span></div><strong id="sendTotal">0 XAF</strong></div>
+      <div class="mini-stat"><div><strong>Frais d'envoi</strong><span>1% du montant</span></div><strong id="sendFee">0 XOF</strong></div>
+      <div class="mini-stat"><div><strong>Total débité</strong><span>Montant + frais</span></div><strong id="sendTotal">0 XOF</strong></div>
       <button class="primary" type="submit">Continuer</button>
       <div class="notice">Le transfert réel sera exécuté par le backend sécurisé. Aucun secret PawaPay n'est stocké dans cette interface.</div>
     </form>
@@ -57,7 +57,7 @@
 
 <section id="wallet" class="screen">
   <div class="greeting"><h1>Portefeuille</h1><div class="muted">Gère ton argent et tes moyens de paiement.</div></div>
-  <div class="card" style="margin-bottom:14px"><div class="balance-label" style="color:var(--muted)">Solde disponible</div><div class="balance" style="color:var(--ink);margin-bottom:3px" id="walletBalance">0 FCFA</div><div class="muted">Compte principal • XAF</div></div>
+  <div class="card" style="margin-bottom:14px"><div class="balance-label" style="color:var(--muted)">Solde disponible</div><div class="balance" style="color:var(--ink);margin-bottom:3px" id="walletBalance">0 FCFA</div><div class="muted">Compte principal • <span id="walletCurrencyLabel">XOF</span></div></div>
   <div class="card" style="margin-bottom:14px"><div class="section-head" style="margin-top:0"><h2>Recharger</h2></div><form class="form" id="topupForm"><div class="field"><label>Montant</label><input id="topupAmount" type="number" min="1" required placeholder="Montant en FCFA"></div><div class="field"><label>Numéro de téléphone</label><input id="topupPhone" required placeholder="Ton numéro local MTN"></div><div class="field"><label>Moyen de paiement</label><select><option>MTN Mobile Money</option></select></div><button class="primary" type="submit">Continuer avec MTN</button></form></div>
   <div class="card"><div class="section-head" style="margin-top:0"><h2>Retirer</h2></div><form class="form" id="withdrawForm"><div class="field"><label>Montant</label><input id="withdrawAmount" type="number" min="1" required placeholder="Montant en FCFA"></div><div class="field"><label>Numéro de téléphone</label><input id="withdrawPhone" required placeholder="Ton numéro local MTN"></div><button class="secondary" type="submit">Demander le retrait</button></form></div>
   <div class="notice">MTN Mobile Money est le moyen configuré pour le premier test Congo-Brazzaville. La disponibilité réelle dépend de la configuration active de ton compte PawaPay.</div>
