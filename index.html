@@ -17,7 +17,7 @@
 <body>
 <div class="app">
 <main class="shell">
-<header class="topbar" id="mainHeader">
+<header class="topbar" id="mainHeader" style="display:none">
   <div class="brand"><div class="logo">W</div><div><strong>Wallet Connect</strong><small>Paiements simples, partout</small></div></div>
   <button class="avatar" type="button" data-screen="profile">A</button>
 </header>
@@ -82,7 +82,7 @@
 
 <div class="footer" id="footer">Wallet Connect • Paiements sécurisés</div>
 </main>
-<nav class="bottom" aria-label="Navigation principale">
+<nav class="bottom" aria-label="Navigation principale" style="display:none">
   <button class="active" type="button" data-screen="home"><div class="bi">⌂</div>Accueil</button>
   <button type="button" data-screen="send"><div class="bi">↗</div>Envoyer</button>
   <button type="button" data-screen="activity"><div class="bi">◷</div>Activité</button>
@@ -95,9 +95,9 @@
 const API="https://br-fragrant-moon-b4qxibei-walletapi.compute.c-6.us-east-2.aws.neon.tech";
 let hidden=false, meData=null, authMode="login", txs=[];
 const COUNTRY_CODES=(typeof Intl.supportedValuesOf==="function"?Intl.supportedValuesOf("region"):["BJ","CG","CD","CI","CM","FR","BE","CA","US","GB","DE","IT","ES","PT","SN","TG","GH","NG","ZA","MA","DZ","TN","KE","RW","UG","TZ","IN","CN","AE","BR","CH","LU"]);
-const COUNTRY_NAMES=new Intl.DisplayNames(["fr"],{type:"region"});
+const COUNTRY_NAMES=typeof Intl.DisplayNames==="function"?new Intl.DisplayNames(["fr"],{type:"region"}):null;
 const flag=code=>code.replace(/./g,ch=>String.fromCodePoint(127397+ch.charCodeAt(0)));
-function fillCountries(selectId,selected=""){const s=document.getElementById(selectId);if(!s)return;s.innerHTML="<option value=\"\">Sélectionner ton pays</option>"+COUNTRY_CODES.filter(x=>/^[A-Z]{2}$/.test(x)).sort((a,b)=>(COUNTRY_NAMES.of(a)||a).localeCompare(COUNTRY_NAMES.of(b)||b)).map(code=>"<option value=\""+code+"\" "+(code===selected?"selected":"")+">"+flag(code)+" "+escapeHtml(COUNTRY_NAMES.of(code)||code)+"</option>").join("")}
+function fillCountries(selectId,selected=""){const s=document.getElementById(selectId);if(!s)return;s.innerHTML="<option value=\"\">Sélectionner ton pays</option>"+COUNTRY_CODES.filter(x=>/^[A-Z]{2}$/.test(x)).sort((a,b)=>((COUNTRY_NAMES&&COUNTRY_NAMES.of(a))||a).localeCompare((COUNTRY_NAMES&&COUNTRY_NAMES.of(b))||b)).map(code=>"<option value=\""+code+"\" "+(code===selected?"selected":"")+">"+flag(code)+" "+escapeHtml((COUNTRY_NAMES&&COUNTRY_NAMES.of(code))||code)+"</option>").join("")}
 
 const money=n=>Number(n||0).toLocaleString("fr-FR",{maximumFractionDigits:0})+" XAF";
 const toast=m=>{const t=document.getElementById("toast");t.textContent=m;t.classList.add("show");clearTimeout(window.__toast);window.__toast=setTimeout(()=>t.classList.remove("show"),2400)};
@@ -113,7 +113,7 @@ function render(){
  document.getElementById("profileName").textContent=name;
  document.getElementById("profileEmail").textContent=meData?.email||"Compte personnel";
  document.getElementById("profileAvatar").textContent=name.charAt(0).toUpperCase();
- const country=meData?.country_code||""; fillCountries("profileCountrySelect",country); document.getElementById("profileCountry").textContent=country?(flag(country)+" "+(COUNTRY_NAMES.of(country)||country)):"Pays non renseigné";
+ const country=meData?.country_code||""; fillCountries("profileCountrySelect",country); document.getElementById("profileCountry").textContent=country?(flag(country)+" "+((COUNTRY_NAMES&&COUNTRY_NAMES.of(country))||country)):"Pays non renseigné";
  renderTx("homeTransactions",3);renderTx("activityList",50);
 }
 function renderTx(id,limit){const box=document.getElementById(id);if(!txs.length){box.innerHTML='<div class="empty">Aucune transaction pour le moment</div>';return}box.innerHTML=txs.slice(0,limit).map(t=>{const positive=t.direction==="credit";return '<div class="tx"><div class="txicon">'+(positive?"＋":"↗")+'</div><div class="txmain"><strong>'+escapeHtml(t.description||t.type)+'</strong><span>'+new Date(t.created_at).toLocaleString("fr-FR")+' • '+t.status+'</span></div><div class="txamount '+(positive?"positive":"negative")+'">'+(positive?"+":"−")+money(t.amount)+'</div></div>'}).join("")}
@@ -121,6 +121,7 @@ function escapeHtml(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;",
 async function refresh(){const d=await api("/me");meData=d.user;txs=d.transactions||[];render()}
 async function enterApp(){document.getElementById("footer").style.display="";show("home");await refresh()}
 async function checkSession(){try{const d=await api("/auth/get-session",{method:"GET"});if(d?.user){await enterApp()}else show("auth")}catch{show("auth")}}
+show("auth");
 document.getElementById("authSwitch").addEventListener("click",()=>{authMode=authMode==="login"?"signup":"login";document.getElementById("authTitle").textContent=authMode==="login"?"Connexion":"Créer un compte";document.getElementById("authSubmit").textContent=authMode==="login"?"Se connecter":"Créer mon compte";document.getElementById("nameField").classList.toggle("hide",authMode==="login");document.getElementById("countryField").classList.toggle("hide",authMode==="login");document.getElementById("authCountry").required=authMode==="signup";document.getElementById("authSwitchText").textContent=authMode==="login"?"Pas encore de compte ?":"Déjà un compte ?";document.getElementById("authSwitch").textContent=authMode==="login"?"Créer un compte":"Se connecter";document.getElementById("authPassword").autocomplete=authMode==="login"?"current-password":"new-password"});
 document.getElementById("authForm").addEventListener("submit",async e=>{e.preventDefault();const err=document.getElementById("authError");err.style.display="none";const btn=document.getElementById("authSubmit");btn.disabled=true;try{const path=authMode==="login"?"/auth/sign-in/email":"/auth/sign-up/email";const payload={email:document.getElementById("authEmail").value.trim(),password:document.getElementById("authPassword").value};if(authMode==="signup"){payload.name=document.getElementById("authName").value.trim();payload.country_code=document.getElementById("authCountry").value;if(!payload.country_code)throw new Error("Sélectionne ton pays")}const d=await api(path,{method:"POST",body:JSON.stringify(payload)});if(authMode==="signup")await api("/profile",{method:"POST",body:JSON.stringify({country_code:payload.country_code})});if(d?.user||d?.data?.user){toast(authMode==="login"?"Connexion réussie":"Compte créé");await enterApp()}else{await enterApp()}}catch(ex){err.textContent=ex.message;err.style.display="block"}finally{btn.disabled=false}});
 document.getElementById("toggleBalance").addEventListener("click",()=>{hidden=!hidden;render()});
