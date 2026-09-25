@@ -178,7 +178,9 @@ async function feeConfig(operation,country,currency){
      ORDER BY CASE WHEN country_code=$3 THEN 0 ELSE 1 END LIMIT 1`,
     [operation,currency,country]
   );
-  return q.rows[0]||null;
+  if(q.rows[0])return q.rows[0];
+  if(operation==="topup")return {fee_type:"percentage",fee_value:7};
+  return null;
 }
 function calculateFee(amount,config){
   if(!config)return 0;
