@@ -1,5 +1,5 @@
 import {state} from "../state.js";import {profileApi} from "../api/profile.js";
-export function initProfile({api,toast,render,show}){
+export function initProfile({toast,render,show}){
   document.getElementById("saveProfileBtn").addEventListener("click",async()=>{
     try{
       const country=document.getElementById("profileCountrySelect").value;
