@@ -6,6 +6,7 @@ const PAWAPAY_BASE = "https://api.pawapay.io/v2";
 const DEFAULT_PROVIDER = "MTN_MOMO_COG";
 const DEFAULT_COUNTRY = "CG";
 const DEFAULT_CURRENCY = "XAF";
+const COUNTRY_CURRENCY = { CG: "XAF", BJ: "XOF" };
 const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 5 });
 
 function cors(headers = {}) {
@@ -96,7 +97,7 @@ async function requireUser(request) {
     const user = result.rows[0];
     await client.query(
       `INSERT INTO public.wallets (user_id,currency,balance,status)
-       VALUES ($1,'XAF',0,'active')
+       VALUES ($1,COALESCE($2,'XAF'),0,'active')
        ON CONFLICT (user_id) DO NOTHING`,
       [user.id]
     );
@@ -133,6 +134,7 @@ async function createTopup(request, user) {
   const method = await activePaymentMethod(country);
   if (!method) return bad("Aucun moyen de paiement n'est encore disponible dans ton pays");
   const provider = method.provider;
+  const currency = method.currency || COUNTRY_CURRENCY[country] || DEFAULT_CURRENCY;
   const client = await pool.connect();
   let row;
   try {
@@ -144,8 +146,8 @@ async function createTopup(request, user) {
     const ref = "TOP-" + crypto.randomUUID();
     const ins = await client.query(
       `INSERT INTO public.topups(reference,wallet_id,amount,fee_amount,currency,provider,status,payment_method,metadata,idempotency_key)
-       VALUES ($1,$2,$3,0,'XAF',$4,'pending','MTN_MOBILE_MONEY',$5,$6) RETURNING *`,
-      [ref, wallet.rows[0].id, amount, provider, JSON.stringify({ phone, provider, country: user.country_code || DEFAULT_COUNTRY }), key]
+       VALUES ($1,$2,$3,0,$4,$5,'pending','MTN_MOBILE_MONEY',$5,$6) RETURNING *`,
+      [ref, wallet.rows[0].id, amount, currency, provider, JSON.stringify({ phone, provider, country: user.country_code || DEFAULT_COUNTRY }), key]
     );
     row = ins.rows[0];
     await client.query("COMMIT");
@@ -156,7 +158,7 @@ async function createTopup(request, user) {
   const p = await pawapay("/deposits", "POST", {
     depositId: row.reference,
     amount: String(amount),
-    currency: DEFAULT_CURRENCY,
+    currency,
     payer: { type: "MMO", accountDetails: { phoneNumber: phone, provider } },
     customerMessage: "Recharge Wallet Connect",
     metadata: [{ fieldName: "walletConnectReference", fieldValue: row.reference }]
@@ -242,6 +244,7 @@ async function withdraw(request,user) {
   const method = await activePaymentMethod(country);
   if (!method) return bad("Aucun moyen de retrait n'est encore disponible dans ton pays");
   const provider = method.provider;
+  const currency = method.currency || COUNTRY_CURRENCY[country] || DEFAULT_CURRENCY;
   const key=idempotency(request,"withdraw-"+crypto.randomUUID()),c=await pool.connect();
   let row;
   try{
@@ -254,8 +257,8 @@ async function withdraw(request,user) {
     if(before<amount)throw Object.assign(new Error("Solde insuffisant"),{status:409});
     const ref="WDR-"+crypto.randomUUID();
     const ins=await c.query(`INSERT INTO public.withdrawals(reference,wallet_id,amount,fee_amount,currency,provider,status,destination_type,destination_account,metadata,idempotency_key)
-      VALUES($1,$2,$3,0,'XAF',$4,'processing','mobile_money',$5,$6,$7) RETURNING *`,
-      [ref,w.rows[0].id,amount,provider,phone,JSON.stringify({provider,country}),key]);
+      VALUES($1,$2,$3,0,$4,'processing','mobile_money',$5,$6,$7) RETURNING *`,
+      [ref,w.rows[0].id,amount,currency,provider,phone,JSON.stringify({provider,country}),key]);
     await c.query("UPDATE public.wallets SET balance=balance-$1,updated_at=now() WHERE id=$2",[amount,w.rows[0].id]);
     const after=before-amount;
     await c.query(`INSERT INTO public.transactions(reference,wallet_id,type,direction,amount,currency,balance_before,balance_after,status,description,metadata)
@@ -265,7 +268,7 @@ async function withdraw(request,user) {
   }catch(e){await c.query("ROLLBACK");c.release();throw e}
   c.release();
   const p=await pawapay("/payouts","POST",{
-    payoutId:row.reference,amount:String(amount),currency:DEFAULT_CURRENCY,
+    payoutId:row.reference,amount:String(amount),currency:row.currency,
     recipient:{type:"MMO",accountDetails:{phoneNumber:phone,provider:row.provider}},
     customerMessage:"Retrait Wallet Connect",clientReferenceId:row.reference,metadata:[{fieldName:"walletConnectReference",fieldValue:row.reference}]
   });
@@ -305,6 +308,12 @@ async function updateProfile(request,user) {
   const c = await pool.connect();
   try {
     const r = await c.query(`UPDATE public.users SET country_code=$1, phone=COALESCE(NULLIF($2,''),phone), updated_at=now() WHERE id=$3 RETURNING id,email,full_name,phone,country_code,status,kyc_status`,[country,phone,user.id]);
+    const wallet = await c.query(`SELECT id,balance,currency FROM public.wallets WHERE user_id=$1 FOR UPDATE`,[user.id]);
+    const targetCurrency = COUNTRY_CURRENCY[country] || DEFAULT_CURRENCY;
+    if (wallet.rows[0] && wallet.rows[0].currency !== targetCurrency) {
+      if (Number(wallet.rows[0].balance) !== 0) return bad("Impossible de changer de devise avec un solde non nul",409,"CURRENCY_CHANGE_REQUIRES_ZERO_BALANCE");
+      await c.query(`UPDATE public.wallets SET currency=$1,updated_at=now() WHERE id=$2`,[targetCurrency,wallet.rows[0].id]);
+    }
     if (!r.rows[0]) return bad("Profil introuvable",404,"NOT_FOUND");
     return json({ok:true,user:r.rows[0],payment_method_available:Boolean(allowed.rows[0])});
   } finally { c.release(); }
@@ -331,7 +340,7 @@ async function handler(request) {
     if(request.method==="GET"&&path.startsWith("/topups/")&&path.endsWith("/status"))return topupStatus(request,user,path.split("/")[2]);
     if(request.method==="POST"&&path==="/withdrawals")return withdraw(request,user);
     if(request.method==="GET"&&path.startsWith("/withdrawals/")&&path.endsWith("/status"))return withdrawalStatus(request,user,path.split("/")[2]);
-    if(request.method==="GET"&&path==="/providers")return json({ok:true,providers:[{country:"CG",currency:"XAF",provider:DEFAULT_PROVIDER,name:"MTN Mobile Money"}]});
+    if(request.method==="GET"&&path==="/providers")return json({ok:true,providers:[{country:"CG",currency:"XAF",provider:DEFAULT_PROVIDER,name:"MTN Mobile Money"},{country:"BJ",currency:"XOF",provider:"MTN_MOMO_BEN",name:"MTN Mobile Money"}]});
     return bad("Route introuvable",404,"NOT_FOUND");
   }catch(e){
     console.error(e);
