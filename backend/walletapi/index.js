@@ -7,7 +7,7 @@ const DEFAULT_PROVIDER = "MTN_MOMO_COG";
 const DEFAULT_COUNTRY = "CG";
 const DEFAULT_CURRENCY = "XAF";
 const COUNTRY_CURRENCY = { CG: "XAF", BJ: "XOF" };
-const COUNTRY_DIAL = { BJ:"229", CG:"242", CD:"243", CI:"225", CM:"237", SN:"221", TG:"228", GH:"233", NG:"234", ZA:"27", FR:"33", BE:"32", CA:"1", US:"1", GB:"44", DE:"49", IT:"39", ES:"34", PT:"351" };
+const COUNTRY_DIAL = { BJ:"229", BF:"226", CM:"237", GH:"233", CI:"225", NG:"234", SN:"221", SL:"232", TG:"228", CG:"242", CD:"243", GA:"241", LS:"266", MW:"265", MZ:"258", ZM:"260", ET:"251", KE:"254", RW:"250", TZ:"255", UG:"256", ML:"223", GN:"224", GW:"245", LR:"231", SS:"211", ZA:"27", FR:"33", BE:"32", CA:"1", US:"1", GB:"44", DE:"49", IT:"39", ES:"34", PT:"351" };
 const COUNTRY_ISO3 = { BJ:"BEN", CG:"COG", CD:"COD", CI:"CIV", CM:"CMR", SN:"SEN", TG:"TGO", GH:"GHA", NG:"NGA", ZA:"ZAF", FR:"FRA", BE:"BEL", CA:"CAN", US:"USA", GB:"GBR", DE:"DEU", IT:"ITA", ES:"ESP", PT:"PRT" };
 const ISO3_TO_ISO2 = Object.fromEntries(Object.entries(COUNTRY_ISO3).map(([k,v])=>[v,k]));
 let configCache={at:0,data:null};
@@ -167,10 +167,8 @@ async function createTopup(request,user) {
   const p=await pawapay("/deposits","POST",{
     depositId:row.provider_reference, amount:String(amount), currency,
     correspondent:provider,
-    payer:{type:"MSISDN",address:{value:phone}},
-    customerTimestamp:new Date().toISOString(),
-    statementDescription:"Recharge Wallet",
-    country:COUNTRY_ISO3[country]||country,
+    payer:{type:"MMO",accountDetails:{phoneNumber:phone,provider}},
+    customerMessage:"Recharge Wallet",
     metadata:[{fieldName:"walletConnectReference",fieldValue:row.reference}]
   });
   const providerStatus=String(p.data?.status||"").toUpperCase();
@@ -257,7 +255,7 @@ async function withdraw(request,user) {
       VALUES($1,$2,'withdrawal','debit',$3,$4,$5,$6,'pending','Retrait MTN',$7)`,["TX-"+crypto.randomUUID(),w.rows[0].id,amount,currency,before,after,JSON.stringify({withdrawal_id:ins.rows[0].id})]);
     await c.query("COMMIT"); row=ins.rows[0];
   }catch(e){await c.query("ROLLBACK");c.release();throw e} c.release();
-  const p=await pawapay("/payouts","POST",{payoutId:row.provider_reference,amount:String(amount),currency:row.currency,recipient:{type:"MMO",accountDetails:{phoneNumber:normalizePhone(row.destination_account,country),provider:row.provider}},customerMessage:"Retrait Wallet",clientReferenceId:row.reference,metadata:[{fieldName:"walletConnectReference",fieldValue:row.reference}]});
+  const p=await pawapay("/payouts","POST",{payoutId:row.provider_reference,amount:String(amount),currency:row.currency,recipient:{type:"MMO",accountDetails:{phoneNumber:row.destination_account,provider:row.provider}},customerMessage:"Retrait Wallet",clientReferenceId:row.reference,metadata:[{fieldName:"walletConnectReference",fieldValue:row.reference}]});
   if(!p.ok){const c2=await pool.connect();try{await c2.query("BEGIN");await c2.query("UPDATE public.wallets SET balance=balance+$1,updated_at=now() WHERE id=$2",[amount,row.wallet_id]);await c2.query("UPDATE public.withdrawals SET status='failed',failure_reason=$1,metadata=metadata || $2::jsonb WHERE id=$3",["PawaPay rejection",JSON.stringify({pawapay:p.data}),row.id]);await c2.query("UPDATE public.transactions SET status='failed',metadata=metadata || $1::jsonb WHERE metadata->>'withdrawal_id'=$2",[JSON.stringify({pawapay:p.data}),String(row.id)]);await c2.query("COMMIT")}catch(e){await c2.query("ROLLBACK")}finally{c2.release();}return json({ok:false,error:"PawaPay a refusé le retrait",details:p.data},502);}
   await pool.query("UPDATE public.withdrawals SET status='processing',metadata=metadata || $1::jsonb WHERE id=$2",[JSON.stringify({pawapay:p.data}),row.id]);
   return json({ok:true,withdrawal:{...row,status:"processing",provider_reference:row.provider_reference},provider_response:p.data},202);
