@@ -136,17 +136,16 @@ async function availableProviders(country,kind){
   const active=await pawapay("/active-conf","GET");
   if(!active.ok){ console.error("PAWAPAY_ACTIVE_CONF_ERROR",active.status,active.data); return []; }
 
+  // Keep the known-good PawaPay configuration format. This function is shared
+  // by deposits and payouts, so do not introduce operation-specific query params.
   const countries=Array.isArray(active.data?.countries)?active.data.countries:
-    (Array.isArray(active.data)?active.data:
-      (active.data?.country&&Array.isArray(active.data?.providers)?[active.data]:[]));
-  const aliases=new Set([String(country).toUpperCase(),String(iso3).toUpperCase()]);
-  const cc=countries.find(x=>aliases.has(String(x.country||x.countryCode||x.iso3||"").toUpperCase()));
-  const providers=Array.isArray(cc?.providers)?cc.providers:
-    (Array.isArray(cc?.correspondents)?cc.correspondents:[]);
-  const configured=providers.map(x=>{
-    const correspondent=x.provider||x.correspondent||x.code;
-    const ops=(Array.isArray(x.operationTypes)?x.operationTypes:[]).map(o=>typeof o==="string"?{operationType:o}:o).filter(Boolean);
-    const op=ops.find(o=>String(o.operationType||o.type||"").toUpperCase()===String(kind).toUpperCase());
+    (Array.isArray(active.data)?active.data:[]);
+  const cc=countries.find(x=>String(x.country||x.countryCode||"").toUpperCase()===String(iso3).toUpperCase());
+  const correspondents=Array.isArray(cc?.correspondents)?cc.correspondents:[];
+  const configured=correspondents.map(x=>{
+    const correspondent=x.correspondent||x.provider;
+    const ops=Array.isArray(x.operationTypes)?x.operationTypes:[];
+    const op=ops.find(o=>o&&o.operationType===kind);
     if(!correspondent||!op)return null;
     const brand=providerBrand(correspondent);
     return {...x,correspondent,provider:correspondent,currency:x.currency||COUNTRY_CURRENCY[country]||DEFAULT_CURRENCY,
@@ -154,21 +153,25 @@ async function availableProviders(country,kind){
   }).filter(Boolean);
   if(!configured.length)return [];
 
-  // IMPORTANT: availability is queried exactly as documented, with country + operation.
-  // If this health endpoint fails or has an unexpected envelope, keep configured methods.
-  const live=await pawapay("/availability?country="+encodeURIComponent(iso3)+"&operationType="+encodeURIComponent(kind),"GET");
+  // PawaPay /availability returns ALL countries and correspondents. It is only
+  // a live health signal; merchant authorization comes from active-conf.
+  const live=await pawapay("/availability","GET");
   if(!live.ok){
     console.error("PAWAPAY_AVAILABILITY_ERROR",live.status,live.data);
     return configured.map(x=>({...x,status:"CONFIGURED"}));
   }
-  const liveProviders=Array.isArray(live.data)?live.data:
-    (Array.isArray(live.data?.providers)?live.data.providers:
-      (Array.isArray(live.data?.countries)?(live.data.countries.find(x=>aliases.has(String(x.country||"").toUpperCase()))?.providers||[]):[]));
-  if(!liveProviders.length)return configured.map(x=>({...x,status:"CONFIGURED"}));
+  const availabilityCountries=Array.isArray(live.data)?live.data:
+    (Array.isArray(live.data?.countries)?live.data.countries:[]);
+  const ac=availabilityCountries.find(x=>String(x.country||x.countryCode||"").toUpperCase()===String(iso3).toUpperCase());
+  if(!ac||!Array.isArray(ac.correspondents)){
+    console.warn("PAWAPAY_AVAILABILITY_SHAPE_UNRECOGNIZED",{country:iso3,kind});
+    return configured.map(x=>({...x,status:"CONFIGURED"}));
+  }
+  const available=ac.correspondents;
   return configured.map(cfg=>{
-    const liveProvider=liveProviders.find(x=>(x.provider||x.correspondent||x.code)===cfg.correspondent);
-    const liveOps=(Array.isArray(liveProvider?.operationTypes)?liveProvider.operationTypes:[]).map(o=>typeof o==="string"?{operationType:o}:o);
-    const liveOp=liveOps.find(o=>String(o.operationType||o.type||"").toUpperCase()===String(kind).toUpperCase());
+    const liveProvider=available.find(x=>(x.correspondent||x.provider)===cfg.correspondent);
+    const liveOps=Array.isArray(liveProvider?.operationTypes)?liveProvider.operationTypes:[];
+    const liveOp=liveOps.find(o=>o&&o.operationType===kind);
     const status=String(liveOp?.status||"CONFIGURED").toUpperCase();
     return {...cfg,status,operationTypes:liveOps.length?liveOps:cfg.operationTypes};
   }).filter(x=>x.status==="OPERATIONAL"||x.status==="CONFIGURED");
