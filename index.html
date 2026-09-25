@@ -14,7 +14,7 @@
 <main class="shell">
 <header class="topbar" id="mainHeader" style="display:none">
   <div class="brand"><div class="logo">W</div><div><strong>Wallet Connect</strong><small>Paiements simples, partout</small></div></div>
-  <button class="avatar" type="button" data-screen="profile">A</button>
+  <button class="avatar" type="button" id="headerAvatar" data-screen="profile" aria-label="Ouvrir le profil">A</button>
 </header>
 
 <section id="auth" class="screen active"><div class="card auth-card"><div class="auth-logo">W</div><h1 class="auth-title" id="authTitle">Connexion</h1><p class="muted" style="text-align:center;margin-bottom:18px">Accède à ton portefeuille Wallet Connect.</p><div class="auth-error" id="authError"></div><form class="form" id="authForm"><div class="field hide" id="nameField"><label>Nom complet</label><input id="authName" autocomplete="name"></div><div class="field hide" id="countryField"><label>Pays de résidence</label><select id="authCountry" class="country-select"><option value="">Sélectionner ton pays</option></select></div><div class="field"><label>Email</label><input id="authEmail" type="email" autocomplete="email" required></div><div class="field"><label>Mot de passe</label><input id="authPassword" type="password" minlength="8" autocomplete="current-password" required></div><button class="primary" id="authSubmit" type="submit">Se connecter</button></form><div class="auth-switch"><span id="authSwitchText">Pas encore de compte ?</span> <button type="button" id="authSwitch">Créer un compte</button></div></div></section>
