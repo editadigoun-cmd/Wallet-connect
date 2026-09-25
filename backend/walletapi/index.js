@@ -88,10 +88,10 @@ async function requireUser(request) {
     await client.query("BEGIN");
     const result = await client.query(
       `INSERT INTO public.users (auth_user_id,email,full_name,status,kyc_status,country_code)
-       VALUES ($1,$2,$3,'active','not_started',$4)
+       VALUES ($1,$2,$3,'active','not_started',NULL)
        ON CONFLICT (auth_user_id) DO UPDATE SET email=EXCLUDED.email, full_name=COALESCE(EXCLUDED.full_name,public.users.full_name), updated_at=now()
        RETURNING id,email,full_name,phone,country_code,status,kyc_status`,
-      [authUser.id, authUser.email, authUser.name || null, DEFAULT_COUNTRY]
+      [authUser.id, authUser.email, authUser.name || null]
     );
     const user = result.rows[0];
     await client.query(
@@ -135,9 +135,9 @@ async function createTopup(request, user) {
     if (!wallet.rows[0]) throw new Error("Portefeuille introuvable");
     const ref = "TOP-" + crypto.randomUUID();
     const ins = await client.query(
-      `INSERT INTO public.topups(reference,wallet_id,amount,fee_amount,currency,status,payment_method,metadata,idempotency_key)
-       VALUES ($1,$2,$3,0,'XAF','pending','MTN_MOBILE_MONEY',$4,$5) RETURNING *`,
-      [ref, wallet.rows[0].id, amount, JSON.stringify({ phone, provider: DEFAULT_PROVIDER, country: DEFAULT_COUNTRY }), key]
+      `INSERT INTO public.topups(reference,wallet_id,amount,fee_amount,currency,provider,status,payment_method,metadata,idempotency_key)
+       VALUES ($1,$2,$3,0,'XAF',$4,'pending','MTN_MOBILE_MONEY',$5,$6) RETURNING *`,
+      [ref, wallet.rows[0].id, amount, provider, JSON.stringify({ phone, provider, country: user.country_code || DEFAULT_COUNTRY }), key]
     );
     row = ins.rows[0];
     await client.query("COMMIT");
@@ -242,9 +242,11 @@ async function withdraw(request,user) {
     const before=Number(w.rows[0].balance);
     if(before<amount)throw Object.assign(new Error("Solde insuffisant"),{status:409});
     const ref="WDR-"+crypto.randomUUID();
-    const ins=await c.query(`INSERT INTO public.withdrawals(reference,wallet_id,amount,fee_amount,currency,status,destination_type,destination_account,metadata,idempotency_key)
-      VALUES($1,$2,$3,0,'XAF','processing','mobile_money',$4,$5,$6) RETURNING *`,
-      [ref,w.rows[0].id,amount,phone,JSON.stringify({provider:DEFAULT_PROVIDER,country:DEFAULT_COUNTRY}),key]);
+    const provider = b.provider || DEFAULT_PROVIDER;
+    const country = user.country_code || DEFAULT_COUNTRY;
+    const ins=await c.query(`INSERT INTO public.withdrawals(reference,wallet_id,amount,fee_amount,currency,provider,status,destination_type,destination_account,metadata,idempotency_key)
+      VALUES($1,$2,$3,0,'XAF',$4,'processing','mobile_money',$5,$6,$7) RETURNING *`,
+      [ref,w.rows[0].id,amount,provider,phone,JSON.stringify({provider,country}),key]);
     await c.query("UPDATE public.wallets SET balance=balance-$1,updated_at=now() WHERE id=$2",[amount,w.rows[0].id]);
     const after=before-amount;
     await c.query(`INSERT INTO public.transactions(reference,wallet_id,type,direction,amount,currency,balance_before,balance_after,status,description,metadata)
@@ -255,7 +257,7 @@ async function withdraw(request,user) {
   c.release();
   const p=await pawapay("/payouts","POST",{
     payoutId:row.reference,amount:String(amount),currency:DEFAULT_CURRENCY,
-    recipient:{type:"MMO",accountDetails:{phoneNumber:phone,provider:b.provider||DEFAULT_PROVIDER}},
+    recipient:{type:"MMO",accountDetails:{phoneNumber:phone,provider:row.provider}},
     customerMessage:"Retrait Wallet Connect",clientReferenceId:row.reference,metadata:[{fieldName:"walletConnectReference",fieldValue:row.reference}]
   });
   if(!p.ok){
@@ -285,6 +287,19 @@ async function withdrawalStatus(request,user,reference) {
   }
   return json({ok:true,withdrawal:row,provider:p.data});
 }
+async function updateProfile(request,user) {
+  const b = await body(request);
+  const country = String(b.country_code || "").trim().toUpperCase();
+  const phone = normalizePhone(b.phone);
+  if (!/^[A-Z]{2}$/.test(country)) return bad("Pays invalide");
+  const allowed = await pool.query("SELECT 1 FROM public.payment_methods WHERE country_code=$1 AND active=true LIMIT 1",[country]);
+  const c = await pool.connect();
+  try {
+    const r = await c.query(`UPDATE public.users SET country_code=$1, phone=COALESCE(NULLIF($2,''),phone), updated_at=now() WHERE id=$3 RETURNING id,email,full_name,phone,country_code,status,kyc_status`,[country,phone,user.id]);
+    if (!r.rows[0]) return bad("Profil introuvable",404,"NOT_FOUND");
+    return json({ok:true,user:r.rows[0],payment_method_available:Boolean(allowed.rows[0])});
+  } finally { c.release(); }
+}
 async function me(user) {
   const r=await pool.query(`SELECT u.id,u.email,u.full_name,u.phone,u.country_code,u.status,u.kyc_status,w.id wallet_id,w.currency,w.balance
     FROM public.users u JOIN public.wallets w ON w.user_id=u.id WHERE u.id=$1`,[user.id]);
@@ -301,6 +316,7 @@ async function handler(request) {
   try{user=await requireUser(request)}catch(e){return bad(e.message||"Authentification requise",e.status||401,"UNAUTHORIZED")}
   try{
     if(request.method==="GET"&&path==="/me")return me(user);
+    if(request.method==="POST"&&path==="/profile")return updateProfile(request,user);
     if(request.method==="POST"&&path==="/transfer")return transfer(request,user);
     if(request.method==="POST"&&path==="/topups")return createTopup(request,user);
     if(request.method==="GET"&&path.startsWith("/topups/")&&path.endsWith("/status"))return topupStatus(request,user,path.split("/")[2]);
