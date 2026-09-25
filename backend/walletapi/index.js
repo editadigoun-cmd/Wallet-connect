@@ -119,17 +119,20 @@ async function availableProviders(country,kind){
   if(live.ok){
     const bucket=Array.isArray(live.data)?live.data.find(x=>x.country===iso3):live.data;
     const providers=bucket?.providers||bucket?.correspondents||[];
-    return providers.filter(x=>{
+    const operational=providers.filter(x=>{
       const ops=x.operationTypes||[];
       const op=ops.find(o=>o.operationType===kind);
       return op && (op.status===undefined || op.status==="OPERATIONAL");
-    }).map(x=>{
+    });
+    if(operational.length) return operational.map(x=>{
       const correspondent=x.provider||x.correspondent;
       const brand=providerBrand(correspondent);
       const op=(x.operationTypes||[]).find(o=>o.operationType===kind)||{};
       return {...x,correspondent,currency:x.currency||COUNTRY_CURRENCY[country]||DEFAULT_CURRENCY,status:op.status||"OPERATIONAL",displayName:x.displayName||x.name||brand.name,logo:x.logo||x.logoUrl||brand.logo};
     });
   }
+  // If PawaPay availability is reachable but returns no active provider for a configured market,
+  // use the local merchant configuration instead of incorrectly showing an empty selector.
   const rows=await pool.query(`SELECT provider,currency FROM public.payment_methods WHERE country_code=$1 AND active=true AND ((supports_topup=true AND $2='DEPOSIT') OR (supports_withdrawal=true AND $2='PAYOUT')) ORDER BY id`,[country,kind]);
   return rows.rows.map(x=>{const brand=providerBrand(x.provider);return {provider:x.provider,correspondent:x.provider,currency:x.currency||COUNTRY_CURRENCY[country]||DEFAULT_CURRENCY,status:"UNKNOWN",displayName:brand.name,logo:brand.logo,operationTypes:[{operationType:kind,status:"UNKNOWN"}]};});
 }
