@@ -48,9 +48,9 @@ async function checkSession(){
 function initUi(){
   initNavigation();
   initAuth({fillCountries,toast,enterApp});
-  initWallet({api,toast,refresh,show});
-  initTransfers({api,toast,refresh,show});
-  initProfile({api,toast,render,show});
+  initWallet({toast,refresh});
+  initTransfers({toast,refresh});
+  initProfile({toast,render,show});
 
   document.getElementById("toggleBalance").addEventListener("click",()=>{
     state.hidden=!state.hidden;
