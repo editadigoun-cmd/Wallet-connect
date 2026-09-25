@@ -149,12 +149,16 @@ async function availableProviders(country,kind){
   const iso3=COUNTRY_ISO3[country]||country;
   const c=conf?.countries?.find(x=>x.country===iso3);
   if(!c)return [];
-  const availability=await pawapay("/availability","GET");
-  const av=availability.ok?availability.data?.find(x=>x.country===iso3):null;
-  return (c.correspondents||[]).filter(x=>operationType(x,kind)).map(x=>{
-    const a=av?.correspondents?.find(y=>y.correspondent===x.correspondent);
+  const configured=c.providers||c.correspondents||[];
+  const availability=await pawapay("/availability?country="+encodeURIComponent(iso3)+"&operationType="+encodeURIComponent(kind),"GET");
+  const av=availability.ok?(Array.isArray(availability.data)?availability.data.find(x=>x.country===iso3):null):null;
+  const liveProviders=av?.providers||av?.correspondents||[];
+  return configured.filter(x=>operationType(x,kind)).map(x=>{
+    const correspondent=x.correspondent||x.provider;
+    const a=liveProviders.find(y=>(y.provider||y.correspondent)===correspondent);
     const op=a?.operationTypes?.find(y=>y.operationType===kind);
-    const brand=providerBrand(x.correspondent);return {...x,status:op?.status||"UNKNOWN",displayName:x.displayName||x.name||brand.name,logo:x.logo||x.logoUrl||brand.logo};
+    const brand=providerBrand(correspondent);
+    return {...x,correspondent,status:op?.status||"UNKNOWN",displayName:x.displayName||x.name||brand.name,logo:x.logo||x.logoUrl||brand.logo};
   }).filter(x=>x.status==="OPERATIONAL");
 }
 async function activePaymentMethod(country) {
