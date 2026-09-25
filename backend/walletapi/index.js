@@ -144,6 +144,10 @@ async function createTopup(request,user) {
   const key=idempotency(request,"topup-"+crypto.randomUUID()), providers=await availableProviders(country,"DEPOSIT"), requested=providers.find(x=>x.correspondent===requestedProvider), selected=requested||providers[0];
   if(!selected)return bad("Aucun moyen de recharge disponible pour ce pays");
   const provider=selected.correspondent, currency=selected.currency||COUNTRY_CURRENCY[country]||DEFAULT_CURRENCY;
+  const depositConfig=operationType(selected,"DEPOSIT")||{};
+  const minDeposit=Number(depositConfig.minTransactionLimit||0),maxDeposit=Number(depositConfig.maxTransactionLimit||0);
+  if(minDeposit&&amount<minDeposit)return bad("Le montant minimum pour ce moyen est "+minDeposit+" "+currency);
+  if(maxDeposit&&amount>maxDeposit)return bad("Le montant maximum pour ce moyen est "+maxDeposit+" "+currency);
   const client=await pool.connect(); let row;
   try {
     await client.query("BEGIN");
