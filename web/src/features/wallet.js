@@ -10,8 +10,8 @@ export function initWallet({api,toast,refresh,show}){
       const btn=e.target.querySelector("button[type=submit]");btn.disabled=true;btn.classList.add("loading");
       const d=await api("/topups",{method:"POST",headers:{"Idempotency-Key":"topup-"+crypto.randomUUID()},body:JSON.stringify({amount,phone,provider})});
       toast("Demande envoyée. Si le moyen de paiement demande une validation, confirme-la sur ton téléphone.");
-      e.target.reset();poll("/topups/"+d.topup.reference+"/status","topup");btn.disabled=false;btn.classList.remove("loading")
-    }catch(ex){toast(ex.message)}
+      e.target.reset();poll("/topups/"+d.topup.reference+"/status","topup");
+    }catch(ex){toast(ex.message,"error")}finally{const btn=e.target.querySelector("button[type=submit]");btn.disabled=false;btn.classList.remove("loading")}
   });
   document.getElementById("withdrawForm").addEventListener("submit",async e=>{
     e.preventDefault();
@@ -24,8 +24,8 @@ export function initWallet({api,toast,refresh,show}){
       const btn=e.target.querySelector("button[type=submit]");btn.disabled=true;btn.classList.add("loading");
       const d=await api("/withdrawals",{method:"POST",headers:{"Idempotency-Key":"withdraw-"+crypto.randomUUID()},body:JSON.stringify({amount,phone,provider})});
       toast("Demande de retrait envoyée");
-      e.target.reset();poll("/withdrawals/"+d.withdrawal.reference+"/status","withdrawal");btn.disabled=false;btn.classList.remove("loading")
-    }catch(ex){toast(ex.message)}
+      e.target.reset();poll("/withdrawals/"+d.withdrawal.reference+"/status","withdrawal");
+    }catch(ex){toast(ex.message,"error")}finally{const btn=e.target.querySelector("button[type=submit]");btn.disabled=false;btn.classList.remove("loading")}
   });
   async function poll(path,kind){
     for(let i=0;i<12;i++){
