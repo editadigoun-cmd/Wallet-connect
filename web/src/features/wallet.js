@@ -1,5 +1,5 @@
 import {walletApi} from "../api/wallet.js";
-export function initWallet({api,toast,refresh,show}){
+export function initWallet({toast,refresh}){
   document.getElementById("topupForm").addEventListener("submit",async e=>{
     e.preventDefault();
     try{
