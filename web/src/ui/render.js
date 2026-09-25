@@ -25,7 +25,7 @@ export function render(){
   document.getElementById("sendFee").dataset.type=feeType;
   document.getElementById("sendFee").textContent=feeType==="percentage"?feeValue+"%":money(feeValue,currency);
   document.getElementById("sendTotal").textContent=money(0,currency);
-  document.getElementById("paymentNotice").textContent=state.providers?.depositProviders?.length||state.providers?.payoutProviders?.length?"Les moyens affichés sont ceux configurés et actuellement opérationnels pour ton pays.":"Aucun moyen de paiement opérationnel n'est actuellement disponible pour ce pays.";
+  const paymentNotice=document.getElementById("paymentNotice");if(paymentNotice)paymentNotice.textContent=state.providers?.depositProviders?.length||state.providers?.payoutProviders?.length?"Les moyens affichés sont ceux configurés et actuellement opérationnels pour ton pays.":"Aucun moyen de paiement opérationnel n'est actuellement disponible pour ce pays.";
   fillProviders("topupProvider",state.providers?.depositProviders||[],"Aucun moyen de recharge disponible");
   fillProviders("withdrawProvider",state.providers?.payoutProviders||[],"Aucun moyen de retrait disponible");
   const name=state.meData?.full_name||state.meData?.email?.split("@")[0]||"Utilisateur";
