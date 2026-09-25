@@ -26,8 +26,7 @@ export function render(){
   fillProviders("topupProvider",state.providers?.depositProviders||[],"Aucun moyen de recharge disponible");
   fillProviders("withdrawProvider",state.providers?.payoutProviders||[],"Aucun moyen de retrait disponible");
   const name=state.meData?.full_name||state.meData?.email?.split("@")[0]||"Utilisateur";
-  const feeLabel=document.querySelector("#home .mini-stat:nth-of-type(2) strong");
-  const feeType=state.meData?.transfer_fee_type||"percentage", feeValue=Number(state.meData?.transfer_fee_value||0);
+  const feeLabel=document.getElementById("homeTransferFee");
   if(feeLabel) feeLabel.textContent=feeType==="percentage"?feeValue+"%":money(feeValue,currency);
   document.querySelector(".greeting h1").textContent="Bonjour "+name.split(" ")[0]+" 👋";
   document.getElementById("profileName").textContent=name;
