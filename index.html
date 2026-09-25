@@ -16,12 +16,12 @@
 <body>
 <div class="app"><main class="shell">
   <header class="top"><div class="brand">Wallet Connect</div><div class="badge">MVP • PawaPay</div></header>
-  <section class="hero"><small>Solde disponible</small><div class="balance" id="balance">0 FCFA</div><div class="actions"><button onclick="showPanel('send')">Envoyer</button><button onclick="showPanel('topup')">Recharger</button><button onclick="showPanel('withdraw')">Retirer</button></div></section>
+  <section class="hero"><small>Solde disponible</small><div class="balance" id="balance">0 FCFA</div><div class="actions"><button type="button" data-panel="send">Envoyer</button><button type="button" data-panel="topup">Recharger</button><button type="button" data-panel="withdraw">Retirer</button></div></section>
   <div class="grid">
     <section class="card"><h2>Dernières transactions</h2><div id="transactions"><div class="tx"><div><strong>Aucune transaction</strong><div class="muted">Ton historique apparaîtra ici.</div></div><span>—</span></div></div></section>
     <section class="card"><h2>Ton portefeuille</h2><div class="muted">Devise principale</div><strong>FCFA (XOF)</strong><div style="height:12px"></div><div class="muted">Frais</div><strong>Configurables par l'administrateur</strong></section>
   </div>
-  <nav class="nav"><button class="active" onclick="showPanel('home',this)">Accueil</button><button onclick="showPanel('send',this)">Envoyer</button><button onclick="showPanel('topup',this)">Recharger</button><button onclick="showPanel('withdraw',this)">Retirer</button><button onclick="showPanel('history',this)">Transactions</button><button onclick="showPanel('profile',this)">Profil</button></nav>
+  <nav class="nav"><button type="button" class="active" data-panel="home">Accueil</button><button type="button" data-panel="send">Envoyer</button><button type="button" data-panel="topup">Recharger</button><button type="button" data-panel="withdraw">Retirer</button><button type="button" data-panel="history">Transactions</button><button type="button" data-panel="profile">Profil</button></nav>
   <section id="send" class="panel card"><h2>Envoyer de l'argent</h2><form class="form" onsubmit="demoTransfer(event)"><input id="recipient" required placeholder="Téléphone ou identifiant du destinataire"/><input id="sendAmount" type="number" min="1" required placeholder="Montant en FCFA"/><button class="primary">Confirmer le transfert</button></form><div class="notice">Mode démo : le vrai transfert sera branché au backend Neon avant les tests réels.</div></section>
   <section id="topup" class="panel card"><h2>Recharger</h2><form class="form" onsubmit="demoAction(event,'Recharge')"><input type="number" min="1" required placeholder="Montant en FCFA"/><button class="primary">Continuer avec PawaPay</button></form><div class="notice">PawaPay sera appelé uniquement depuis le backend sécurisé. Le token PawaPay ne sera jamais exposé dans l'application.</div></section>
   <section id="withdraw" class="panel card"><h2>Retirer</h2><form class="form" onsubmit="demoAction(event,'Retrait')"><input type="number" min="1" required placeholder="Montant en FCFA"/><input required placeholder="Numéro MTN"/><button class="primary">Demander le retrait</button></form><div class="notice">Le retrait passe par PawaPay. La disponibilité exacte de l'opérateur et les limites dépendent du pays et de la configuration de ton compte PawaPay.</div></section>
@@ -32,11 +32,13 @@
 </main></div>
 <script>
 let balance=0;
-function showPanel(id,btn){document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));if(id!=='home')document.getElementById(id)?.classList.add('active');document.querySelectorAll('.nav button').forEach(x=>x.classList.remove('active'));if(btn)btn.classList.add('active');}
+function showPanel(id,btn){document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));if(id!=='home'){const panel=document.getElementById(id);if(panel)panel.classList.add('active');}document.querySelectorAll('.nav button').forEach(x=>x.classList.remove('active'));document.querySelectorAll('[data-panel="'+id+'"]').forEach(x=>{if(x.closest('.nav'))x.classList.add('active')});if(btn&&btn.closest('.nav'))btn.classList.add('active');window.scrollTo({top:0,behavior:'smooth'});}
 function demoTransfer(e){e.preventDefault();const amount=Number(document.getElementById('sendAmount').value);if(amount>balance){alert('Solde insuffisant en mode démo.');return}balance-=amount;renderBalance();addTx('Transfert envoyé','-'+amount.toLocaleString('fr-FR')+' FCFA','negative');e.target.reset();alert('Transfert démo enregistré.');}
-function demoAction(e,label){e.preventDefault();alert(label+' démo : le backend sécurisé sera connecté à cette action.');e.target.reset();}
+function demoAction(e,label){e.preventDefault();const form=e.target;const amount=Number(form.querySelector('input[type="number"]')?.value||0);if(!amount||amount<1){alert('Saisis un montant valide.');return;}addTx(label+' — demande enregistrée',amount.toLocaleString('fr-FR')+' FCFA','positive');form.reset();alert(label+' : demande enregistrée dans le mode de démonstration.');}
 function addTx(label,value,cls){const box=document.getElementById('transactions');if(box.textContent.includes('Aucune transaction'))box.innerHTML='';box.insertAdjacentHTML('afterbegin',`<div class="tx"><div><strong>${label}</strong><div class="muted">À l'instant</div></div><span class="${cls||''}">${value}</span></div>`);}
 function renderBalance(){document.getElementById('balance').textContent=balance.toLocaleString('fr-FR')+' FCFA'}
+document.querySelectorAll('[data-panel]').forEach(button=>button.addEventListener('click',()=>showPanel(button.dataset.panel,button)));
+document.querySelectorAll('form').forEach(form=>form.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.tagName==='INPUT'){e.stopPropagation();}}));
 renderBalance();
 </script>
 </body></html>
