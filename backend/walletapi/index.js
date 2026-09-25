@@ -109,7 +109,7 @@ async function requireUser(request) {
       `INSERT INTO public.users (auth_user_id,email,full_name,status,kyc_status,country_code)
        VALUES ($1,$2,$3,'active','not_started',NULL)
        ON CONFLICT (auth_user_id) DO UPDATE SET email=EXCLUDED.email, full_name=COALESCE(EXCLUDED.full_name,public.users.full_name), updated_at=now()
-       RETURNING id,email,full_name,phone,country_code,status,kyc_status`,
+       RETURNING id,email,full_name,phone,country_code,status,kyc_status,wallet_code`,
       [authUser.id, authUser.email, authUser.name || null]
     );
     const user = result.rows[0];
@@ -246,10 +246,42 @@ async function topupStatus(request,user,reference) {
         const w=await c.query("SELECT * FROM public.wallets WHERE id=$1 FOR UPDATE",[row.wallet_id]);
         const before=Number(w.rows[0].balance),after=before+Number(row.amount);
         await c.query("UPDATE public.wallets SET balance=$1,updated_at=now() WHERE id=$2",[after,row.wallet_id]);
-        await c.query("UPDATE public.topups SET status='successful',completed_at=now(),metadata=metadata || $1::jsonb WHERE id=$2",[JSON.stringify({pawapay_status:providerStatus}),row.id]);
-        await c.query(`INSERT INTO public.transactions(reference,wallet_id,type,direction,amount,currency,balance_before,balance_after,status,description,metadata,completed_at)
-          VALUES ($1,$2,'topup','credit',$3,$4,$5,$6,'successful',$7,$8,now())`,
-          ["TX-"+crypto.randomUUID(),row.wallet_id,row.amount,row.currency,before,after,row.metadata?.provider_name||row.provider,JSON.stringify({topup_id:row.id,provider_reference:row.provider_reference,provider:row.provider})]);
+        const pending=locked.rows[0]?.metadata?.pending_transfer;
+        let completedTransfer=null;
+        if(pending?.recipientWalletId){
+          const recipient=await c.query("SELECT * FROM public.wallets WHERE id=$1 FOR UPDATE",[pending.recipientWalletId]);
+          if(!recipient.rows[0])throw new Error("Portefeuille du destinataire introuvable");
+          const transferExisting=await c.query("SELECT * FROM public.transfers WHERE idempotency_key=$1 LIMIT 1",[pending.transferKey]);
+          if(!transferExisting.rows[0]){
+            const total=Number(pending.totalRequired),senderAfter=after-total;
+            if(senderAfter<0)throw new Error("Solde insuffisant après financement du transfert");
+            const ref="TRF-"+crypto.randomUUID();
+            const ins=await c.query(`INSERT INTO public.transfers(reference,sender_wallet_id,receiver_wallet_id,amount,fee_amount,currency,status,note,idempotency_key)
+              VALUES($1,$2,$3,$4,$5,$6,'successful',$7,$8) RETURNING *`,
+              [ref,row.wallet_id,pending.recipientWalletId,Number(pending.amount),Number(pending.transferFee||0),row.currency,pending.note||null,pending.transferKey]);
+            await c.query("UPDATE public.wallets SET balance=$1,updated_at=now() WHERE id=$2",[senderAfter,row.wallet_id]);
+            const rbefore=Number(recipient.rows[0].balance),rafter=rbefore+Number(pending.amount);
+            await c.query("UPDATE public.wallets SET balance=$1,updated_at=now() WHERE id=$2",[rafter,pending.recipientWalletId]);
+            await c.query(`INSERT INTO public.transactions(reference,wallet_id,type,direction,amount,currency,balance_before,balance_after,status,description,metadata,completed_at)
+              VALUES($1,$2,'transfer_out','debit',$3,$4,$5,$6,'successful','Transfert envoyé',$7,now())`,
+              ["TX-"+crypto.randomUUID(),row.wallet_id,total,row.currency,after,senderAfter,JSON.stringify({transfer_id:ins.rows[0].id,mobile_money_funding:true,fee:Number(pending.transferFee||0),mobile_money_fee:Number(pending.mobileMoneyFee||row.fee_amount||0)})]);
+            await c.query(`INSERT INTO public.transactions(reference,wallet_id,type,direction,amount,currency,balance_before,balance_after,status,description,metadata,completed_at)
+              VALUES($1,$2,'transfer_in','credit',$3,$4,$5,$6,'successful','Transfert reçu',$7,now())`,
+              ["TX-"+crypto.randomUUID(),pending.recipientWalletId,Number(pending.amount),row.currency,rbefore,rafter,JSON.stringify({transfer_id:ins.rows[0].id})]);
+            completedTransfer=ins.rows[0];
+          }
+        }
+        await c.query("UPDATE public.topups SET status='successful',completed_at=now(),metadata=metadata || $1::jsonb WHERE id=$2",
+          [JSON.stringify({pawapay_status:providerStatus,transfer_completed:Boolean(completedTransfer)}),row.id]);
+        if(!pending?.recipientWalletId){
+          await c.query(`INSERT INTO public.transactions(reference,wallet_id,type,direction,amount,currency,balance_before,balance_after,status,description,metadata,completed_at)
+            VALUES ($1,$2,'topup','credit',$3,$4,$5,$6,'successful',$7,$8,now())`,
+            ["TX-"+crypto.randomUUID(),row.wallet_id,row.amount,row.currency,row.metadata?.provider_name||row.provider,JSON.stringify({topup_id:row.id,provider_reference:row.provider_reference,provider:row.provider})]);
+        } else {
+          await c.query(`INSERT INTO public.transactions(reference,wallet_id,type,direction,amount,currency,balance_before,balance_after,status,description,metadata,completed_at)
+            VALUES ($1,$2,'topup','credit',$3,$4,$5,$6,'successful',$7,$8,now())`,
+            ["TX-"+crypto.randomUUID(),row.wallet_id,row.amount,row.currency,"Financement de l'envoi",JSON.stringify({topup_id:row.id,provider_reference:row.provider_reference,provider:row.provider,mobile_money_fee:row.fee_amount})]);
+        }
       }
       await c.query("COMMIT");
     }catch(e){await c.query("ROLLBACK");throw e}finally{c.release();}
@@ -262,39 +294,105 @@ async function topupStatus(request,user,reference) {
   return json({ok:true,topup:row,provider:p.data});
 }
 async function transfer(request,user) {
-  const b=await body(request),amount=amountInt(b.amount),recipient=String(b.recipient||"").trim(); if(!amount||!recipient)return bad("Destinataire et montant requis");
+  const b=await body(request),amount=amountInt(b.amount),recipient=String(b.recipient||"").trim();
+  if(!amount||!recipient)return bad("Destinataire et montant requis");
   const key=idempotency(request,"transfer-"+crypto.randomUUID()),c=await pool.connect();
   try{
-    await c.query("BEGIN"); const ex=await c.query("SELECT * FROM public.transfers WHERE idempotency_key=$1",[key]);
+    await c.query("BEGIN");
+    const ex=await c.query("SELECT * FROM public.transfers WHERE idempotency_key=$1",[key]);
     if(ex.rows[0]){await c.query("COMMIT");return json({ok:true,transfer:ex.rows[0]});}
-    const s=await c.query("SELECT u.id,w.id wallet_id,w.balance,w.currency FROM public.users u JOIN public.wallets w ON w.user_id=u.id WHERE u.id=$1 FOR UPDATE",[user.id]);
-    const r=await c.query("SELECT u.id,w.id wallet_id,u.email,u.full_name,w.currency FROM public.users u JOIN public.wallets w ON w.user_id=u.id WHERE (lower(u.email)=lower($1) OR u.phone=$1) AND u.status='active' LIMIT 1",[recipient]);
+    const s=await c.query(
+      "SELECT u.id,u.country_code,u.phone,u.wallet_code,w.id wallet_id,w.balance,w.currency FROM public.users u JOIN public.wallets w ON w.user_id=u.id WHERE u.id=$1 FOR UPDATE",
+      [user.id]
+    );
+    const r=await c.query(
+      "SELECT u.id,u.email,u.full_name,u.wallet_code,u.country_code,w.id wallet_id,w.currency FROM public.users u JOIN public.wallets w ON w.user_id=u.id WHERE upper(u.wallet_code)=upper($1) AND u.status='active' LIMIT 1",
+      [recipient]
+    );
     if(!s.rows[0]||!r.rows[0])throw Object.assign(new Error("Destinataire introuvable"),{status:404});
     if(r.rows[0].id===user.id)throw new Error("Impossible de transférer vers soi-même");
     if((s.rows[0].currency||DEFAULT_CURRENCY)!==(r.rows[0].currency||DEFAULT_CURRENCY))
       return bad("Les transferts entre devises différentes ne sont pas encore disponibles",409,"CURRENCY_MISMATCH");
-    const feeConfig=await c.query(
+    const currency=s.rows[0].currency||DEFAULT_CURRENCY;
+    const feeConfigResult=await c.query(
       `SELECT fee_type,fee_value FROM public.fee_settings
-       WHERE operation='transfer' AND active=true
-         AND currency=$1 AND (country_code=$2 OR country_code IS NULL)
-       ORDER BY CASE WHEN country_code=$2 THEN 0 ELSE 1 END
-       LIMIT 1`,
-      [s.rows[0].currency||DEFAULT_CURRENCY, user.country_code||null]
+       WHERE operation='transfer' AND active=true AND currency=$1
+         AND (country_code=$2 OR country_code IS NULL)
+       ORDER BY CASE WHEN country_code=$2 THEN 0 ELSE 1 END LIMIT 1`,
+      [currency,s.rows[0].country_code||null]
     );
-    const fc=feeConfig.rows[0]||{fee_type:"percentage",fee_value:0};
-    const fee=fc.fee_type==="fixed" ? Math.round(Number(fc.fee_value)||0) : Math.round(amount*(Number(fc.fee_value)||0)/100);
-    const total=amount+fee,before=Number(s.rows[0].balance); if(before<total)throw Object.assign(new Error("Solde insuffisant"),{status:409});
+    const fc=feeConfigResult.rows[0]||{fee_type:"percentage",fee_value:0};
+    const fee=fc.fee_type==="fixed"?Math.round(Number(fc.fee_value)||0):Math.round(amount*(Number(fc.fee_value)||0)/100);
+    const total=amount+fee,before=Number(s.rows[0].balance);
+    if(before<total){
+      const country=String(s.rows[0].country_code||DEFAULT_COUNTRY).toUpperCase();
+      const phone=normalizePhone(b.mobileMoneyPhone||s.rows[0].phone,country);
+      if(!phone)return bad("Ton solde est insuffisant. Ajoute d'abord ton numéro Mobile Money dans ton profil.",409,"MOBILE_MONEY_PHONE_REQUIRED");
+      const providers=await availableProviders(country,"DEPOSIT");
+      if(!providers.length)return bad("Aucun moyen de recharge Mobile Money n'est disponible pour compléter cet envoi.",409,"MOBILE_MONEY_UNAVAILABLE");
+      const selected=providers.find(x=>x.correspondent===String(b.mobileMoneyProvider||""))||providers[0];
+      const topupFeeConfig=await feeConfig("topup",country,currency);
+      const shortfall=total-before;
+      const mobileFee=calculateFee(shortfall,topupFeeConfig);
+      const totalCharge=shortfall+mobileFee;
+      const provider=selected.correspondent;
+      const providerReference=crypto.randomUUID(),topupReference="TOP-"+crypto.randomUUID();
+      const pendingTransfer={
+        transferKey:key,
+        recipientWalletId:r.rows[0].wallet_id,
+        recipientName:r.rows[0].full_name,
+        amount,
+        transferFee:fee,
+        totalRequired:total,
+        shortfall,
+        mobileMoneyFee:mobileFee,
+        note:b.note||null
+      };
+      const top=await c.query(
+        `INSERT INTO public.topups(reference,wallet_id,amount,fee_amount,currency,provider,status,payment_method,metadata,idempotency_key,provider_reference)
+         VALUES($1,$2,$3,$4,$5,$6,'pending',$7,$8,$9,$10) RETURNING *`,
+        [topupReference,s.rows[0].wallet_id,shortfall,mobileFee,currency,provider,selected.displayName||provider,
+         JSON.stringify({phone,provider,country,provider_name:selected.displayName||provider,fee_type:topupFeeConfig?.fee_type||"percentage",fee_rate:Number(topupFeeConfig?.fee_value||7),total_charge:totalCharge,pending_transfer:pendingTransfer}),
+         key+"-funding",providerReference]
+      );
+      await c.query("COMMIT");
+      const p=await pawapay("/deposits","POST",{
+        depositId:providerReference,
+        amount:String(totalCharge),
+        currency,
+        payer:{type:"MMO",accountDetails:{provider,phoneNumber:phone}},
+        customerMessage:"Financement d'un transfert Wallet Connect",
+        clientReferenceId:topupReference,
+        metadata:[{walletConnectReference:topupReference,transferFunding:true}]
+      });
+      const providerStatus=String(p.data?.data?.status||p.data?.status||"").toUpperCase();
+      const rejected=!p.ok||["REJECTED","FAILED","CANCELLED"].includes(providerStatus);
+      await pool.query("UPDATE public.topups SET status=$1,metadata=metadata || $2::jsonb WHERE id=$3",
+        [rejected?"failed":"pending",JSON.stringify({pawapay_response:p.data}),top.rows[0].id]);
+      if(rejected)return json({ok:false,error:"Le prélèvement Mobile Money nécessaire à l'envoi a été refusé.",code:"TRANSFER_FUNDING_REJECTED",details:p.data},502);
+      return json({
+        ok:true,requires_mobile_money:true,
+        transfer:{amount,fee_amount:fee,total_debited:total,recipient:{walletCode:r.rows[0].wallet_code,name:r.rows[0].full_name}},
+        funding:{amount:shortfall,fee:mobileFee,totalCharge,topupReference}
+      },202);
+    }
     const ref="TRF-"+crypto.randomUUID();
     const ins=await c.query(`INSERT INTO public.transfers(reference,sender_wallet_id,receiver_wallet_id,amount,fee_amount,currency,status,note,idempotency_key)
-      VALUES($1,$2,$3,$4,$5,$6,'successful',$7,$8) RETURNING *`,[ref,s.rows[0].wallet_id,r.rows[0].wallet_id,amount,fee,s.rows[0].currency||DEFAULT_CURRENCY,b.note||null,key]);
-    const after=before-total; await c.query("UPDATE public.wallets SET balance=$1,updated_at=now() WHERE id=$2",[after,s.rows[0].wallet_id]);
-    const rw=await c.query("SELECT balance FROM public.wallets WHERE id=$1 FOR UPDATE",[r.rows[0].wallet_id]); const rbefore=Number(rw.rows[0].balance),rafter=rbefore+amount;
+      VALUES($1,$2,$3,$4,$5,$6,'successful',$7,$8) RETURNING *`,
+      [ref,s.rows[0].wallet_id,r.rows[0].wallet_id,amount,fee,currency,b.note||null,key]);
+    const after=before-total;
+    await c.query("UPDATE public.wallets SET balance=$1,updated_at=now() WHERE id=$2",[after,s.rows[0].wallet_id]);
+    const rw=await c.query("SELECT balance FROM public.wallets WHERE id=$1 FOR UPDATE",[r.rows[0].wallet_id]);
+    const rbefore=Number(rw.rows[0].balance),rafter=rbefore+amount;
     await c.query("UPDATE public.wallets SET balance=$1,updated_at=now() WHERE id=$2",[rafter,r.rows[0].wallet_id]);
     await c.query(`INSERT INTO public.transactions(reference,wallet_id,type,direction,amount,currency,balance_before,balance_after,status,description,metadata,completed_at)
-      VALUES($1,$2,'transfer_out','debit',$3,$4,$5,$6,'successful','Transfert envoyé',$7,now())`,["TX-"+crypto.randomUUID(),s.rows[0].wallet_id,total,s.rows[0].currency||DEFAULT_CURRENCY,before,after,JSON.stringify({transfer_id:ins.rows[0].id,fee})]);
+      VALUES($1,$2,'transfer_out','debit',$3,$4,$5,$6,'successful','Transfert envoyé',$7,now())`,
+      ["TX-"+crypto.randomUUID(),s.rows[0].wallet_id,total,currency,before,after,JSON.stringify({transfer_id:ins.rows[0].id,fee})]);
     await c.query(`INSERT INTO public.transactions(reference,wallet_id,type,direction,amount,currency,balance_before,balance_after,status,description,metadata,completed_at)
-      VALUES($1,$2,'transfer_in','credit',$3,$4,$5,$6,'successful','Transfert reçu',$7,now())`,["TX-"+crypto.randomUUID(),r.rows[0].wallet_id,amount,rw.rows[0].currency||s.rows[0].currency||DEFAULT_CURRENCY,rbefore,rafter,JSON.stringify({transfer_id:ins.rows[0].id})]);
-    await c.query("COMMIT"); return json({ok:true,transfer:{...ins.rows[0],recipient:{email:r.rows[0].email,name:r.rows[0].full_name},fee_amount:fee,total_debited:total}},201);
+      VALUES($1,$2,'transfer_in','credit',$3,$4,$5,$6,'successful','Transfert reçu',$7,now())`,
+      ["TX-"+crypto.randomUUID(),r.rows[0].wallet_id,amount,currency,rbefore,rafter,JSON.stringify({transfer_id:ins.rows[0].id})]);
+    await c.query("COMMIT");
+    return json({ok:true,transfer:{...ins.rows[0],recipient:{walletCode:r.rows[0].wallet_code,name:r.rows[0].full_name},fee_amount:fee,total_debited:total}},201);
   }catch(e){await c.query("ROLLBACK");throw e}finally{c.release();}
 }
 async function withdraw(request,user) {
@@ -360,6 +458,23 @@ async function updateProfile(request,user) {
     await c.query(`UPDATE public.wallets SET currency=$1,updated_at=now() WHERE user_id=$2 AND balance=0 AND currency<>$1`,[targetCurrency,user.id]); if(!r.rows[0])return bad("Profil introuvable",404,"NOT_FOUND"); await c.query("COMMIT");return json({ok:true,user:r.rows[0],payment_method_available:allowed});
   }catch(e){await c.query("ROLLBACK");throw e}finally{c.release();}
 }
+async function recipientLookup(request,user,walletCode) {
+  const code=String(walletCode||"").trim().toUpperCase();
+  if(!/^WC-[A-Z0-9]{12}$/.test(code))return bad("Identifiant Wallet Connect invalide",400,"INVALID_WALLET_CODE");
+  const q=await pool.query(
+    `SELECT u.wallet_code,u.full_name,u.country_code,u.kyc_status,u.status
+     FROM public.users u WHERE upper(u.wallet_code)=upper($1) AND u.status='active' LIMIT 1`,
+    [code]
+  );
+  if(!q.rows[0])return bad("Utilisateur Wallet Connect introuvable",404,"NOT_FOUND");
+  if(q.rows[0].wallet_code===user.wallet_code)return bad("Impossible de rechercher ton propre portefeuille",400,"SELF_LOOKUP");
+  return json({ok:true,recipient:{
+    walletCode:q.rows[0].wallet_code,
+    fullName:q.rows[0].full_name||"Utilisateur Wallet Connect",
+    countryCode:q.rows[0].country_code,
+    kycStatus:q.rows[0].kyc_status
+  }});
+}
 async function transactionDetail(request,user,reference) {
   const q=await pool.query(
     `SELECT t.id,t.reference,t.type,t.direction,t.amount,t.currency,t.status,t.description,t.metadata,t.created_at,t.completed_at
@@ -394,6 +509,7 @@ async function handler(request) {
   let user; try{user=await requireUser(request)}catch(e){return bad(e.message||"Authentification requise",e.status||401,"UNAUTHORIZED")}
   try{
     if(request.method==="GET"&&path==="/me")return me(user);
+    if(request.method==="GET"&&path.startsWith("/recipients/"))return recipientLookup(request,user,path.split("/")[2]);
     if(request.method==="GET"&&path.startsWith("/transactions/"))return transactionDetail(request,user,path.split("/")[2]);
     if(request.method==="POST"&&path==="/profile")return updateProfile(request,user);
     if(request.method==="POST"&&path==="/transfer")return transfer(request,user);
