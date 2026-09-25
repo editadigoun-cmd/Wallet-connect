@@ -120,14 +120,15 @@ async function availableProviders(country,kind){
     const bucket=Array.isArray(live.data)?live.data.find(x=>x.country===iso3):live.data;
     const providers=bucket?.providers||bucket?.correspondents||[];
     const operational=providers.filter(x=>{
-      const ops=x.operationTypes||[];
-      const op=ops.find(o=>o.operationType===kind);
+      const ops=Array.isArray(x.operationTypes)?x.operationTypes:[];
+      const op=ops.find(o=>o&&o.operationType===kind);
       return op && (op.status===undefined || op.status==="OPERATIONAL");
     });
     if(operational.length) return operational.map(x=>{
       const correspondent=x.provider||x.correspondent;
       const brand=providerBrand(correspondent);
-      const op=(x.operationTypes||[]).find(o=>o.operationType===kind)||{};
+      const ops=Array.isArray(x.operationTypes)?x.operationTypes:[];
+      const op=ops.find(o=>o&&o.operationType===kind)||{};
       return {...x,correspondent,currency:x.currency||COUNTRY_CURRENCY[country]||DEFAULT_CURRENCY,status:op.status||"OPERATIONAL",displayName:x.displayName||x.name||brand.name,logo:x.logo||x.logoUrl||brand.logo};
     });
   }
@@ -343,7 +344,8 @@ async function handler(request) {
   if(path==="/health"||path==="/")return json({ok:true,service:"walletapi",version:"1.0.2"});
   let user; try{user=await requireUser(request)}catch(e){return bad(e.message||"Authentification requise",e.status||401,"UNAUTHORIZED")}
   try{
-    if(request.method==="GET"&&path==="/me")return me(user);\n    if(request.method==="GET"&&path.startsWith("/transactions/"))return transactionDetail(request,user,path.split("/")[2]);
+    if(request.method==="GET"&&path==="/me")return me(user);
+    if(request.method==="GET"&&path.startsWith("/transactions/"))return transactionDetail(request,user,path.split("/")[2]);
     if(request.method==="POST"&&path==="/profile")return updateProfile(request,user);
     if(request.method==="POST"&&path==="/transfer")return transfer(request,user);
     if(request.method==="POST"&&path==="/topups")return createTopup(request,user);
