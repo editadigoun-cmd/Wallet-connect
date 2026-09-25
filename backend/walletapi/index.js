@@ -191,7 +191,7 @@ async function topupStatus(request, user, reference) {
         await c.query("UPDATE public.wallets SET balance=$1,updated_at=now() WHERE id=$2",[after,row.wallet_id]);
         await c.query("UPDATE public.topups SET status='successful',completed_at=now(),metadata=metadata || $1::jsonb WHERE id=$2",[JSON.stringify({pawapay_status:providerStatus}),row.id]);
         await c.query(`INSERT INTO public.transactions(reference,wallet_id,type,direction,amount,currency,balance_before,balance_after,status,description,metadata,completed_at)
-          VALUES ($1,$2,'topup','credit',$3,$4,$5,'successful','Recharge MTN',$6,now())`,
+          VALUES ($1,$2,'topup','credit',$3,$4,$5,$6,'successful','Recharge MTN',$7,now())`,
           ["TX-"+crypto.randomUUID(),row.wallet_id,row.amount,row.currency,before,after,JSON.stringify({topup_id:row.id,provider_reference:row.provider_reference})]);
       }
       await c.query("COMMIT");
