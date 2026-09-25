@@ -23,8 +23,8 @@
   <div class="balance-card"><div class="balance-label">Solde disponible</div><div class="balance" id="balance">0 FCFA</div><div class="balance-row"><span class="currency" id="balanceCurrency">XOF • Principal</span><button class="eye" type="button" id="toggleBalance">◉</button></div></div>
   <div class="quick">
     <button type="button" data-screen="send"><div class="qicon">↗</div>Envoyer</button>
-    <button type="button" data-screen="wallet"><div class="qicon">＋</div>Recharger</button>
-    <button type="button" data-screen="wallet"><div class="qicon">↓</div>Retirer</button>
+    <button type="button" data-screen="topup"><div class="qicon">＋</div>Recharger</button>
+    <button type="button" data-screen="withdraw"><div class="qicon">↓</div>Retirer</button>
   </div>
   <div class="section-head"><h2>Activité récente</h2><button class="link" type="button" data-screen="activity">Voir tout</button></div>
   <div class="card" id="homeTransactions"><div class="empty">Aucune transaction pour le moment</div></div>
@@ -56,11 +56,40 @@
 </section>
 
 <section id="wallet" class="screen">
-  <div class="greeting"><h1>Portefeuille</h1><div class="muted">Gère ton argent et tes moyens de paiement.</div></div>
-  <div class="card" style="margin-bottom:14px"><div class="balance-label" style="color:var(--muted)">Solde disponible</div><div class="balance" style="color:var(--ink);margin-bottom:3px" id="walletBalance">0 FCFA</div><div class="muted">Compte principal • <span id="walletCurrencyLabel">XOF</span></div></div>
-  <div class="card" style="margin-bottom:14px"><div class="section-head" style="margin-top:0"><h2>Recharger</h2></div><form class="form" id="topupForm"><div class="field"><label>Montant</label><input id="topupAmount" type="number" min="1" required placeholder="Montant"></div><div class="field"><label>Numéro de téléphone</label><input id="topupPhone" required placeholder="Ton numéro local MTN"></div><div class="field"><label>Moyen de paiement</label><div id="topupProviders" class="provider-grid"></div><select id="topupProvider" class="provider-select" aria-hidden="true" tabindex="-1"><option value="">Sélectionner</option></select></div><button class="primary" type="submit">Recharger</button></form></div>
-  <div class="card"><div class="section-head" style="margin-top:0"><h2>Retirer</h2></div><form class="form" id="withdrawForm"><div class="field"><label>Montant</label><input id="withdrawAmount" type="number" min="1" required placeholder="Montant"></div><div class="field"><label>Numéro de téléphone</label><input id="withdrawPhone" required placeholder="Ton numéro local"></div><div class="field"><label>Moyen de retrait</label><div id="withdrawProviders" class="provider-grid"></div><select id="withdrawProvider" class="provider-select" aria-hidden="true" tabindex="-1"><option value="">Sélectionner</option></select></div><button class="secondary" type="submit">Demander le retrait</button></form></div>
-  <div class="notice" id="paymentNotice">Le moyen de paiement disponible dépend de ton pays et de la configuration PawaPay.</div>
+  <div class="greeting"><h1>Portefeuille</h1><div class="muted">Gère ton solde et choisis une opération.</div></div>
+  <div class="card wallet-overview"><div class="balance-label">Solde disponible</div><div class="balance wallet-overview-balance" id="walletBalance">0 FCFA</div><div class="muted">Compte principal • <span id="walletCurrencyLabel">XOF</span></div></div>
+  <div class="section-head"><h2>Opérations</h2></div>
+  <div class="wallet-actions">
+    <button class="wallet-action" type="button" data-screen="topup"><span class="wallet-action-icon">＋</span><span><strong>Recharger</strong><small>Ajouter de l'argent à ton portefeuille</small></span><em>›</em></button>
+    <button class="wallet-action" type="button" data-screen="withdraw"><span class="wallet-action-icon">↓</span><span><strong>Retirer</strong><small>Envoyer ton solde vers Mobile Money</small></span><em>›</em></button>
+  </div>
+  <div class="card wallet-info"><div class="mini-stat"><div><strong>Devise</strong><span>Solde principal</span></div><strong id="walletCurrency">XOF</strong></div><div class="mini-stat"><div><strong>Frais d'envoi</strong><span>Configuration actuelle</span></div><strong id="homeTransferFee">—</strong></div><div class="mini-stat"><div><strong>Retrait</strong><span>Frais plateforme</span></div><strong id="withdrawFee">0 XOF</strong></div></div>
+</section>
+
+<section id="topup" class="screen">
+  <div class="greeting"><button class="back-link" type="button" data-screen="wallet">‹ Portefeuille</button><h1>Recharger</h1><div class="muted">Ajoute de l'argent à ton portefeuille via un moyen de paiement disponible.</div></div>
+  <div class="card">
+    <form class="form" id="topupForm">
+      <div class="field"><label>Montant</label><input id="topupAmount" type="number" min="1" required placeholder="Montant"></div>
+      <div class="field"><label>Numéro de téléphone</label><input id="topupPhone" type="tel" inputmode="numeric" required placeholder="Numéro Mobile Money"></div>
+      <div class="field"><label>Moyen de paiement</label><div id="topupProviders" class="provider-grid"></div><select id="topupProvider" class="provider-select" aria-hidden="true" tabindex="-1"><option value="">Sélectionner</option></select></div>
+      <button class="primary" type="submit">Continuer</button>
+    </form>
+  </div>
+  <div class="notice" id="topupNotice">La confirmation de paiement peut être demandée directement sur ton téléphone.</div>
+</section>
+
+<section id="withdraw" class="screen">
+  <div class="greeting"><button class="back-link" type="button" data-screen="wallet">‹ Portefeuille</button><h1>Retirer</h1><div class="muted">Retire ton solde vers un numéro Mobile Money.</div></div>
+  <div class="card">
+    <form class="form" id="withdrawForm">
+      <div class="field"><label>Montant</label><input id="withdrawAmount" type="number" min="1" required placeholder="Montant"></div>
+      <div class="field"><label>Numéro de téléphone</label><input id="withdrawPhone" type="tel" inputmode="numeric" required placeholder="Numéro Mobile Money"></div>
+      <div class="field"><label>Moyen de retrait</label><div id="withdrawProviders" class="provider-grid"></div><select id="withdrawProvider" class="provider-select" aria-hidden="true" tabindex="-1"><option value="">Sélectionner</option></select></div>
+      <button class="secondary" type="submit">Continuer</button>
+    </form>
+  </div>
+  <div class="notice">Les frais et le montant net sont affichés avant la confirmation lorsque la configuration du pays les définit.</div>
 </section>
 
 <section id="profile" class="screen">
