@@ -15,6 +15,9 @@ jobs:
       NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
       PAWAPAY_API_TOKEN: ${{ secrets.PAWAPAY_API_TOKEN }}
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Build Neon Function package
         shell: bash
         run: |
