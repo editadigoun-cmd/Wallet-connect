@@ -144,10 +144,11 @@ async function createTopup(request, user) {
     const wallet = await client.query("SELECT id FROM public.wallets WHERE user_id=$1 AND status='active' FOR UPDATE", [user.id]);
     if (!wallet.rows[0]) throw new Error("Portefeuille introuvable");
     const ref = "TOP-" + crypto.randomUUID();
+    const providerReference = crypto.randomUUID();
     const ins = await client.query(
-      `INSERT INTO public.topups(reference,wallet_id,amount,fee_amount,currency,provider,status,payment_method,metadata,idempotency_key)
-       VALUES ($1,$2,$3,0,$4,$5,'pending','MTN_MOBILE_MONEY',$6,$7) RETURNING *`,
-      [ref, wallet.rows[0].id, amount, currency, provider, JSON.stringify({ phone, provider, country: user.country_code || DEFAULT_COUNTRY }), key]
+      `INSERT INTO public.topups(reference,wallet_id,amount,fee_amount,currency,provider,status,payment_method,metadata,idempotency_key,provider_reference)
+       VALUES ($1,$2,$3,0,$4,$5,'pending','MTN_MOBILE_MONEY',$6,$7,$8) RETURNING *`,
+      [ref, wallet.rows[0].id, amount, currency, provider, JSON.stringify({ phone, provider, country: user.country_code || DEFAULT_COUNTRY }), key, providerReference]
     );
     row = ins.rows[0];
     await client.query("COMMIT");
@@ -156,7 +157,7 @@ async function createTopup(request, user) {
   }
   client.release();
   const p = await pawapay("/deposits", "POST", {
-    depositId: row.reference,
+    depositId: row.provider_reference,
     amount: String(amount),
     currency,
     payer: { type: "MMO", accountDetails: { phoneNumber: phone, provider } },
@@ -164,10 +165,10 @@ async function createTopup(request, user) {
     metadata: [{ fieldName: "walletConnectReference", fieldValue: row.reference }]
   });
   const status = p.ok ? "pending" : "failed";
-  await pool.query("UPDATE public.topups SET provider_reference=$1,status=$2,metadata=metadata || $3::jsonb WHERE id=$4",
-    [row.reference, status, JSON.stringify({ pawapay_response: p.data }), row.id]);
+  await pool.query("UPDATE public.topups SET status=$1,metadata=metadata || $2::jsonb WHERE id=$3",
+    [status, JSON.stringify({ pawapay_response: p.data }), row.id]);
   if (!p.ok) return json({ ok:false, error:"PawaPay a refusé la recharge", details:p.data }, 502);
-  return json({ ok:true, topup:{...row,status,provider_reference:row.reference}, provider_response:p.data }, 202);
+  return json({ ok:true, topup:{...row,status}, provider_response:p.data }, 202);
 }
 async function topupStatus(request, user, reference) {
   const q = await pool.query(
@@ -228,10 +229,10 @@ async function transfer(request,user) {
     const rbefore=Number(rw.rows[0].balance),rafter=rbefore+amount;
     await c.query("UPDATE public.wallets SET balance=$1,updated_at=now() WHERE id=$2",[rafter,r.rows[0].wallet_id]);
     await c.query(`INSERT INTO public.transactions(reference,wallet_id,type,direction,amount,currency,balance_before,balance_after,status,description,metadata,completed_at)
-      VALUES($1,$2,'transfer_out','debit',$3,'XAF',$4,$5,'successful','Transfert envoyé',$6,now())`,
+      VALUES($1,$2,'transfer_out','debit',$3,$4,$5,$6,'successful','Transfert envoyé',$7,now())`,
       ["TX-"+crypto.randomUUID(),s.rows[0].wallet_id,total,s.rows[0].currency||DEFAULT_CURRENCY,before,after,JSON.stringify({transfer_id:ins.rows[0].id,fee})]);
     await c.query(`INSERT INTO public.transactions(reference,wallet_id,type,direction,amount,currency,balance_before,balance_after,status,description,metadata,completed_at)
-      VALUES($1,$2,'transfer_in','credit',$3,'XAF',$4,$5,'successful','Transfert reçu',$6,now())`,
+      VALUES($1,$2,'transfer_in','credit',$3,$4,$5,$6,'successful','Transfert reçu',$7,now())`,
       ["TX-"+crypto.randomUUID(),r.rows[0].wallet_id,amount,rw.rows[0].currency||s.rows[0].currency||DEFAULT_CURRENCY,rbefore,rafter,JSON.stringify({transfer_id:ins.rows[0].id})]);
     await c.query("COMMIT");
     return json({ok:true,transfer:{...ins.rows[0],recipient:{email:r.rows[0].email,name:r.rows[0].full_name},fee_amount:fee,total_debited:total}},201);
@@ -256,19 +257,20 @@ async function withdraw(request,user) {
     const before=Number(w.rows[0].balance);
     if(before<amount)throw Object.assign(new Error("Solde insuffisant"),{status:409});
     const ref="WDR-"+crypto.randomUUID();
-    const ins=await c.query(`INSERT INTO public.withdrawals(reference,wallet_id,amount,fee_amount,currency,provider,status,destination_type,destination_account,metadata,idempotency_key)
-      VALUES($1,$2,$3,0,$4,$5,'processing','mobile_money',$6,$7,$8) RETURNING *`,
-      [ref,w.rows[0].id,amount,currency,provider,phone,JSON.stringify({provider,country}),key]);
+    const providerReference=crypto.randomUUID();
+    const ins=await c.query(`INSERT INTO public.withdrawals(reference,wallet_id,amount,fee_amount,currency,provider,status,destination_type,destination_account,metadata,idempotency_key,provider_reference)
+      VALUES($1,$2,$3,0,$4,$5,'processing','mobile_money',$6,$7,$8,$9) RETURNING *`,
+      [ref,w.rows[0].id,amount,currency,provider,phone,JSON.stringify({provider,country}),key,providerReference]);
     await c.query("UPDATE public.wallets SET balance=balance-$1,updated_at=now() WHERE id=$2",[amount,w.rows[0].id]);
     const after=before-amount;
     await c.query(`INSERT INTO public.transactions(reference,wallet_id,type,direction,amount,currency,balance_before,balance_after,status,description,metadata)
-      VALUES($1,$2,'withdrawal','debit',$3,$4,$5,'pending','Retrait MTN',$6)`,
+      VALUES($1,$2,'withdrawal','debit',$3,$4,$5,$6,'pending','Retrait MTN',$7)`,
       ["TX-"+crypto.randomUUID(),w.rows[0].id,amount,currency,before,after,JSON.stringify({withdrawal_id:ins.rows[0].id})]);
     await c.query("COMMIT"); row=ins.rows[0];
   }catch(e){await c.query("ROLLBACK");c.release();throw e}
   c.release();
   const p=await pawapay("/payouts","POST",{
-    payoutId:row.reference,amount:String(amount),currency:row.currency,
+    payoutId:row.provider_reference || providerReference,amount:String(amount),currency:row.currency,
     recipient:{type:"MMO",accountDetails:{phoneNumber:phone,provider:row.provider}},
     customerMessage:"Retrait Wallet Connect",clientReferenceId:row.reference,metadata:[{fieldName:"walletConnectReference",fieldValue:row.reference}]
   });
@@ -277,7 +279,7 @@ async function withdraw(request,user) {
     try{await c2.query("BEGIN");await c2.query("UPDATE public.wallets SET balance=balance+$1,updated_at=now() WHERE id=$2",[amount,row.wallet_id]);await c2.query("UPDATE public.withdrawals SET status='failed',failure_reason=$1,metadata=metadata || $2::jsonb WHERE id=$3",["PawaPay rejection",JSON.stringify({pawapay:p.data}),row.id]);await c2.query("UPDATE public.transactions SET status='failed',metadata=metadata || $1::jsonb WHERE metadata->>'withdrawal_id'=$2",[JSON.stringify({pawapay:p.data}),String(row.id)]);await c2.query("COMMIT")}catch(e){await c2.query("ROLLBACK")}finally{c2.release();}
     return json({ok:false,error:"PawaPay a refusé le retrait",details:p.data},502);
   }
-  await pool.query("UPDATE public.withdrawals SET provider_reference=$1,status='processing',metadata=metadata || $2::jsonb,updated_at=now() WHERE id=$3",[row.reference,JSON.stringify({pawapay:p.data}),row.id]);
+  await pool.query("UPDATE public.withdrawals SET status='processing',metadata=metadata || $1::jsonb,updated_at=now() WHERE id=$2",[JSON.stringify({pawapay:p.data}),row.id]);
   return json({ok:true,withdrawal:{...row,status:"processing",provider_reference:row.reference},provider_response:p.data},202);
 }
 async function withdrawalStatus(request,user,reference) {
