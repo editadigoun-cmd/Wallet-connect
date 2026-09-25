@@ -134,7 +134,17 @@ async function availableProviders(country,kind){
   // If PawaPay availability is reachable but returns no active provider for a configured market,
   // use the local merchant configuration instead of incorrectly showing an empty selector.
   const rows=await pool.query(`SELECT provider,currency FROM public.payment_methods WHERE country_code=$1 AND active=true AND ((supports_topup=true AND $2='DEPOSIT') OR (supports_withdrawal=true AND $2='PAYOUT')) ORDER BY id`,[country,kind]);
-  return rows.rows.map(x=>{const brand=providerBrand(x.provider);return {provider:x.provider,correspondent:x.provider,currency:x.currency||COUNTRY_CURRENCY[country]||DEFAULT_CURRENCY,status:"UNKNOWN",displayName:brand.name,logo:brand.logo,operationTypes:[{operationType:kind,status:"UNKNOWN"}]};});
+  if(rows.rows.length) return rows.rows.map(x=>{const brand=providerBrand(x.provider);return {provider:x.provider,correspondent:x.provider,currency:x.currency||COUNTRY_CURRENCY[country]||DEFAULT_CURRENCY,status:"UNKNOWN",displayName:brand.name,logo:brand.logo,operationTypes:[{operationType:kind,status:"UNKNOWN"}]};});
+  // Benin supports MTN Mobile Money and Moov Money; keep them visible when
+  // provider availability is temporarily incomplete but the merchant is configured for Benin.
+  if(country==="BEN"){
+    const fallback=[
+      {correspondent:"MTN_MOMO_BEN",currency:"XOF",displayName:"MTN Mobile Money",status:"OPERATIONAL",operationTypes:[{operationType:kind,status:"OPERATIONAL"}]},
+      {correspondent:"MOOV_BEN",currency:"XOF",displayName:"Moov Money",status:"OPERATIONAL",operationTypes:[{operationType:kind,status:"OPERATIONAL"}]}
+    ];
+    return fallback;
+  }
+  return [];
 }
 async function activePaymentMethod(country){
   const providers=await availableProviders(country,"DEPOSIT");
