@@ -38,11 +38,12 @@
   <div class="greeting"><h1>Envoyer de l'argent</h1><div class="muted">Transfère rapidement à un autre utilisateur.</div></div>
   <div class="card">
     <form class="form" id="sendForm">
-      <div class="field"><label>Destinataire</label><input id="recipient" required placeholder="Téléphone ou identifiant"></div>
-      <div class="recipient"><div class="recipient-avatar" id="recipientAvatar">?</div><div><strong id="recipientName">Destinataire</strong><div class="muted">Utilisateur Wallet Connect</div></div></div>
+      <div class="field"><label>Identifiant Wallet Connect</label><input id="recipient" required placeholder="WC-XXXXXXXXXXXX" autocomplete="off" autocapitalize="characters"></div>
+      <div class="recipient"><div class="recipient-avatar" id="recipientAvatar">?</div><div><strong id="recipientName">Destinataire</strong><div class="muted" id="recipientMeta">Saisis un identifiant Wallet Connect</div></div></div>
       <div class="field"><label>Montant</label><div class="amount-big"><input id="sendAmount" type="number" min="1" required placeholder="0"></div></div>
       <div class="mini-stat"><div><strong>Frais d'envoi</strong><span id="sendFeeLabel">Configuration actuelle</span></div><strong id="sendFee">0 XOF</strong></div>
-      <div class="mini-stat"><div><strong>Total débité</strong><span>Montant + frais</span></div><strong id="sendTotal">0 XOF</strong></div>
+      <div class="mini-stat"><div><strong>Total débité</strong><span>Montant + frais d'envoi</span></div><strong id="sendTotal">0 XOF</strong></div>
+      <div class="mini-stat"><div><strong>Mobile Money</strong><span>Uniquement si le portefeuille est insuffisant</span></div><strong id="sendFunding">Aucun prélèvement Mobile Money</strong></div>
       <button class="primary" type="submit">Continuer</button>
       <div class="notice">Le transfert réel sera exécuté par le backend sécurisé. Aucun secret PawaPay n'est stocké dans cette interface.</div>
     </form>
