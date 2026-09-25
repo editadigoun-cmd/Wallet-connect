@@ -9,6 +9,8 @@ const DEFAULT_CURRENCY = "XAF";
 const COUNTRY_CURRENCY = { CG: "XAF", BJ: "XOF" };
 const COUNTRY_DIAL = { BJ:"229", CG:"242", CD:"243", CI:"225", CM:"237", SN:"221", TG:"228", GH:"233", NG:"234", ZA:"27", FR:"33", BE:"32", CA:"1", US:"1", GB:"44", DE:"49", IT:"39", ES:"34", PT:"351" };
 const COUNTRY_ISO3 = { BJ:"BEN", CG:"COG", CD:"COD", CI:"CIV", CM:"CMR", SN:"SEN", TG:"TGO", GH:"GHA", NG:"NGA", ZA:"ZAF", FR:"FRA", BE:"BEL", CA:"CAN", US:"USA", GB:"GBR", DE:"DEU", IT:"ITA", ES:"ESP", PT:"PRT" };
+const ISO3_TO_ISO2 = Object.fromEntries(Object.entries(COUNTRY_ISO3).map(([k,v])=>[v,k]));
+let configCache={at:0,data:null};
 const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 5 });
 
 function cors(headers = {}) {
@@ -111,12 +113,40 @@ async function pawapay(path, method, payload) {
   const text = await r.text(); let data; try { data=JSON.parse(text); } catch { data={raw:text}; }
   return { ok:r.ok, status:r.status, data };
 }
+async function activeConfiguration(){
+  if(configCache.data && Date.now()-configCache.at<30000)return configCache.data;
+  const p=await pawapay("/active-conf","GET");
+  if(!p.ok)throw new Error("Impossible de récupérer les moyens de paiement PawaPay");
+  configCache={at:Date.now(),data:p.data}; return p.data;
+}
+function providerConfigs(country){
+  const iso3=COUNTRY_ISO3[country]||country;
+  const conf=configCache.data?.countries?.find(x=>x.country===iso3);
+  return conf?.correspondents||[];
+}
+function operationType(c,kind){
+  return (c.operationTypes||[]).find(x=>x.operationType===kind);
+}
+async function availableProviders(country,kind){
+  const conf=await activeConfiguration();
+  const iso3=COUNTRY_ISO3[country]||country;
+  const c=conf?.countries?.find(x=>x.country===iso3);
+  if(!c)return [];
+  const availability=await pawapay("/availability","GET");
+  const av=availability.ok?availability.data?.find(x=>x.country===iso3):null;
+  return (c.correspondents||[]).filter(x=>operationType(x,kind)).map(x=>{
+    const a=av?.correspondents?.find(y=>y.correspondent===x.correspondent);
+    const op=a?.operationTypes?.find(y=>y.operationType===kind);
+    return {...x,status:op?.status||"UNKNOWN"};
+  }).filter(x=>x.status==="OPERATIONAL");
+}
 async function activePaymentMethod(country) {
-  const r=await pool.query(`SELECT country_code,provider,method_code,currency FROM public.payment_methods WHERE country_code=$1 AND active=true AND supports_topup=true AND supports_withdrawal=true ORDER BY id LIMIT 1`,[country]);
-  return r.rows[0]||null;
+  const providers=await availableProviders(country,"DEPOSIT");
+  const p=providers[0];
+  return p?{country_code:country,provider:p.correspondent,method_code:p.correspondent,currency:p.currency}:null;
 }
 async function createTopup(request,user) {
-  const b=await body(request), amount=amountInt(b.amount), country=String(user.country_code||DEFAULT_COUNTRY).toUpperCase(), phone=normalizePhone(b.phone,country);
+  const b=await body(request), amount=amountInt(b.amount), country=String(user.country_code||DEFAULT_COUNTRY).toUpperCase(), phone=normalizePhone(b.phone,country), requestedProvider=String(b.provider||"").trim();
   if(!amount||!phone)return bad("Montant et numéro MTN requis");
   const key=idempotency(request,"topup-"+crypto.randomUUID()), method=await activePaymentMethod(country);
   if(!method)return bad("Aucun moyen de paiement n'est encore disponible dans ton pays");
@@ -147,7 +177,8 @@ async function createTopup(request,user) {
   const rejected=!p.ok || ["REJECTED","FAILED","CANCELLED"].includes(providerStatus);
   const status=rejected?"failed":"pending";
   await pool.query("UPDATE public.topups SET status=$1,metadata=metadata || $2::jsonb WHERE id=$3",[status,JSON.stringify({pawapay_response:p.data}),row.id]);
-  if(rejected)return json({ok:false,error:"La recharge n'a pas été acceptée par MTN. Vérifie le numéro MTN et réessaie.",code:"TOPUP_REJECTED"},502);
+  if(rejected)const reason=p.data?.rejectionReason||p.data?.failureReason||{};
+    return json({ok:false,error:reason.rejectionMessage||reason.failureMessage||"La recharge n'a pas été acceptée par le moyen de paiement sélectionné.",code:"TOPUP_REJECTED",details:reason},502);
   return json({ok:true,topup:{...row,status},provider_response:p.data},202);
 }
 async function topupStatus(request,user,reference) {
@@ -206,10 +237,14 @@ async function transfer(request,user) {
   }catch(e){await c.query("ROLLBACK");throw e}finally{c.release();}
 }
 async function withdraw(request,user) {
-  const b=await body(request),amount=amountInt(b.amount),country=String(user.country_code||DEFAULT_COUNTRY).toUpperCase(),phone=normalizePhone(b.phone,country);
+  const b=await body(request),amount=amountInt(b.amount),country=String(user.country_code||DEFAULT_COUNTRY).toUpperCase(),phone=normalizePhone(b.phone,country),requestedProvider=String(b.provider||"").trim();
   if(!amount||!phone)return bad("Montant et numéro MTN requis");
   const method=await activePaymentMethod(country); if(!method)return bad("Aucun moyen de retrait n'est encore disponible dans ton pays");
-  const provider=method.provider,currency=method.currency||COUNTRY_CURRENCY[country]||DEFAULT_CURRENCY,key=idempotency(request,"withdraw-"+crypto.randomUUID()),c=await pool.connect(); let row;
+  const provider=requestedProvider||method.provider;
+  const providers=await availableProviders(country,"PAYOUT");
+  const selected=providers.find(x=>x.correspondent===provider);
+  if(!selected)return bad("Ce moyen de paiement n'est pas disponible pour les retraits dans ton pays");
+  const currency=selected.currency||method.currency||COUNTRY_CURRENCY[country]||DEFAULT_CURRENCY,key=idempotency(request,"withdraw-"+crypto.randomUUID()),c=await pool.connect(); let row;
   try{
     await c.query("BEGIN"); const ex=await c.query("SELECT w.* FROM public.withdrawals w JOIN public.wallets wa ON wa.id=w.wallet_id WHERE w.idempotency_key=$1",[key]);
     if(ex.rows[0]){await c.query("COMMIT");return json({ok:true,withdrawal:ex.rows[0]});}
@@ -241,11 +276,12 @@ async function withdrawalStatus(request,user,reference) {
 async function updateProfile(request,user) {
   const b=await body(request),country=String(b.country_code||"").trim().toUpperCase(),phone=normalizePhone(b.phone,country);
   if(!/^[A-Z]{2}$/.test(country))return bad("Pays invalide");
-  const allowed=await pool.query("SELECT 1 FROM public.payment_methods WHERE country_code=$1 AND active=true AND (supports_topup=true OR supports_withdrawal=true) LIMIT 1"),c=await pool.connect();
+  const allowed=(await availableProviders(country,"DEPOSIT")).length>0 || (await availableProviders(country,"PAYOUT")).length>0;
+  const c=await pool.connect();
   try{await c.query("BEGIN");const wallet=await c.query("SELECT id,balance,currency FROM public.wallets WHERE user_id=$1 FOR UPDATE",[user.id]);const targetCurrency=COUNTRY_CURRENCY[country]||DEFAULT_CURRENCY;
     if(wallet.rows[0]&&Number(wallet.rows[0].balance)!==0&&wallet.rows[0].currency!==targetCurrency){await c.query("ROLLBACK");return bad("Impossible de changer de devise avec un solde non nul",409,"CURRENCY_CHANGE_REQUIRES_ZERO_BALANCE");}
     const r=await c.query(`UPDATE public.users SET country_code=$1,phone=COALESCE(NULLIF($2,''),phone),updated_at=now() WHERE id=$3 RETURNING id,email,full_name,phone,country_code,status,kyc_status`,[country,phone,user.id]);
-    await c.query(`UPDATE public.wallets SET currency=$1,updated_at=now() WHERE user_id=$2 AND balance=0 AND currency<>$1`,[targetCurrency,user.id]); if(!r.rows[0])return bad("Profil introuvable",404,"NOT_FOUND"); await c.query("COMMIT");return json({ok:true,user:r.rows[0],payment_method_available:Boolean(allowed.rows[0])});
+    await c.query(`UPDATE public.wallets SET currency=$1,updated_at=now() WHERE user_id=$2 AND balance=0 AND currency<>$1`,[targetCurrency,user.id]); if(!r.rows[0])return bad("Profil introuvable",404,"NOT_FOUND"); await c.query("COMMIT");return json({ok:true,user:r.rows[0],payment_method_available:allowed});
   }catch(e){await c.query("ROLLBACK");throw e}finally{c.release();}
 }
 async function me(user) {
@@ -268,7 +304,11 @@ async function handler(request) {
     if(request.method==="GET"&&path.startsWith("/topups/")&&path.endsWith("/status"))return topupStatus(request,user,path.split("/")[2]);
     if(request.method==="POST"&&path==="/withdrawals")return withdraw(request,user);
     if(request.method==="GET"&&path.startsWith("/withdrawals/")&&path.endsWith("/status"))return withdrawalStatus(request,user,path.split("/")[2]);
-    if(request.method==="GET"&&path==="/providers")return json({ok:true,providers:[{country:"CG",currency:"XAF",provider:DEFAULT_PROVIDER,name:"MTN Mobile Money"},{country:"BJ",currency:"XOF",provider:"MTN_MOMO_BEN",name:"MTN Mobile Money"}]});
+    if(request.method==="GET"&&path==="/providers"){
+      const country=String(url.searchParams.get("country")||user.country_code||DEFAULT_COUNTRY).toUpperCase();
+      const [deposit,payout]=await Promise.all([availableProviders(country,"DEPOSIT"),availableProviders(country,"PAYOUT")]);
+      return json({ok:true,country,currency:(deposit[0]?.currency||payout[0]?.currency||COUNTRY_CURRENCY[country]||DEFAULT_CURRENCY),depositProviders:deposit,payoutProviders:payout});
+    }
     return bad("Route introuvable",404,"NOT_FOUND");
   }catch(e){console.error(e);return bad(e.message||"Erreur serveur",e.status||500,"SERVER_ERROR")}
 }
