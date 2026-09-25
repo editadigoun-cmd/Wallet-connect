@@ -39,9 +39,9 @@ function normalizePhone(v, country="") {
   const c = String(country || "").toUpperCase();
   if (c === "BJ") {
     if (n.startsWith("229")) n = n.slice(3);
-    if (n.length === 9) n = "0" + n;
+    if (n.length === 9) n = "01" + n.slice(1);
     if (n.length === 10 && !n.startsWith("0")) n = "0" + n;
-    return n;
+    return "229" + n;
   }
   const cc = COUNTRY_DIAL[c];
   if (cc && n.startsWith("0")) n = cc + n.slice(1);
