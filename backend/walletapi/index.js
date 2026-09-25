@@ -182,7 +182,7 @@ async function createTopup(request,user) {
     const ref="TOP-"+crypto.randomUUID(), providerReference=crypto.randomUUID();
     const ins=await client.query(`INSERT INTO public.topups(reference,wallet_id,amount,fee_amount,currency,provider,status,payment_method,metadata,idempotency_key,provider_reference)
       VALUES ($1,$2,$3,0,$4,$5,'pending','MTN_MOBILE_MONEY',$6,$7,$8) RETURNING *`,
-      [ref,wallet.rows[0].id,amount,currency,provider,JSON.stringify({phone,provider,country}),key,providerReference]);
+      [ref,wallet.rows[0].id,amount,currency,provider,JSON.stringify({phone,provider,country,provider_name:selected.displayName||provider}),key,providerReference]);
     row=ins.rows[0]; await client.query("UPDATE public.topups SET payment_method=$1 WHERE id=$2",[selected.displayName||provider,row.id]); await client.query("COMMIT");
   } catch(e){await client.query("ROLLBACK");client.release();throw e} client.release();
   const p=await pawapay("/deposits","POST",{
@@ -218,7 +218,7 @@ async function topupStatus(request,user,reference) {
         await c.query("UPDATE public.topups SET status='successful',completed_at=now(),metadata=metadata || $1::jsonb WHERE id=$2",[JSON.stringify({pawapay_status:providerStatus}),row.id]);
         await c.query(`INSERT INTO public.transactions(reference,wallet_id,type,direction,amount,currency,balance_before,balance_after,status,description,metadata,completed_at)
           VALUES ($1,$2,'topup','credit',$3,$4,$5,$6,'successful',$7,$8,now())`,
-          ["TX-"+crypto.randomUUID(),row.wallet_id,row.amount,row.currency,before,after,selected.displayName||row.provider,JSON.stringify({topup_id:row.id,provider_reference:row.provider_reference,provider:row.provider})]);
+          ["TX-"+crypto.randomUUID(),row.wallet_id,row.amount,row.currency,before,after,row.metadata?.provider_name||row.provider,JSON.stringify({topup_id:row.id,provider_reference:row.provider_reference,provider:row.provider})]);
       }
       await c.query("COMMIT");
     }catch(e){await c.query("ROLLBACK");throw e}finally{c.release();}
