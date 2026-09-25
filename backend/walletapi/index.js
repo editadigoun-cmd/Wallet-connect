@@ -119,6 +119,23 @@ async function activeConfiguration(){
   if(!p.ok)throw new Error("Impossible de récupérer les moyens de paiement PawaPay");
   configCache={at:Date.now(),data:p.data}; return p.data;
 }
+function providerBrand(correspondent=""){
+  const s=String(correspondent).toUpperCase();
+  if(s.includes("MTN"))return {name:"MTN Mobile Money",logo:"https://cdn.simpleicons.org/mtn"};
+  if(s.includes("ORANGE"))return {name:"Orange Money",logo:"https://cdn.simpleicons.org/orange"};
+  if(s.includes("AIRTEL"))return {name:"Airtel Money",logo:"https://cdn.simpleicons.org/airtel"};
+  if(s.includes("VODAFONE"))return {name:"Vodafone Cash",logo:"https://cdn.simpleicons.org/vodafone"};
+  if(s.includes("MPESA"))return {name:"M-Pesa",logo:"https://cdn.simpleicons.org/mpesa"};
+  if(s.includes("MOOV"))return {name:"Moov Money",logo:"https://cdn.simpleicons.org/moov"};
+  if(s.includes("WAVE"))return {name:"Wave",logo:"https://cdn.simpleicons.org/wave"};
+  if(s.includes("TELECEL"))return {name:"Telecel",logo:""};
+  if(s.includes("TNM"))return {name:"TNM Mpamba",logo:""};
+  if(s.includes("HALOTEL"))return {name:"Halotel",logo:""};
+  if(s.includes("ZAMTEL"))return {name:"Zamtel Money",logo:""};
+  if(s.includes("OPAY"))return {name:"OPay",logo:""};
+  if(s.includes("PALMPAY"))return {name:"PalmPay",logo:""};
+  return {name:String(correspondent).replace(/_[A-Z]{3}$/i,"").replace(/_/g," "),logo:""};
+}
 function providerConfigs(country){
   const iso3=COUNTRY_ISO3[country]||country;
   const conf=configCache.data?.countries?.find(x=>x.country===iso3);
@@ -137,7 +154,7 @@ async function availableProviders(country,kind){
   return (c.correspondents||[]).filter(x=>operationType(x,kind)).map(x=>{
     const a=av?.correspondents?.find(y=>y.correspondent===x.correspondent);
     const op=a?.operationTypes?.find(y=>y.operationType===kind);
-    return {...x,status:op?.status||"UNKNOWN"};
+    const brand=providerBrand(x.correspondent);return {...x,status:op?.status||"UNKNOWN",displayName:x.displayName||x.name||brand.name,logo:x.logo||x.logoUrl||brand.logo};
   }).filter(x=>x.status==="OPERATIONAL");
 }
 async function activePaymentMethod(country) {
@@ -148,9 +165,9 @@ async function activePaymentMethod(country) {
 async function createTopup(request,user) {
   const b=await body(request), amount=amountInt(b.amount), country=String(user.country_code||DEFAULT_COUNTRY).toUpperCase(), phone=normalizePhone(b.phone,country), requestedProvider=String(b.provider||"").trim();
   if(!amount||!phone)return bad("Montant et numéro MTN requis");
-  const key=idempotency(request,"topup-"+crypto.randomUUID()), method=await activePaymentMethod(country);
-  if(!method)return bad("Aucun moyen de paiement n'est encore disponible dans ton pays");
-  const provider=method.provider, currency=method.currency||COUNTRY_CURRENCY[country]||DEFAULT_CURRENCY;
+  const key=idempotency(request,"topup-"+crypto.randomUUID()), providers=await availableProviders(country,"DEPOSIT"), requested=providers.find(x=>x.correspondent===requestedProvider), selected=requested||providers[0];
+  if(!selected)return bad("Aucun moyen de recharge disponible pour ce pays");
+  const provider=selected.correspondent, currency=selected.currency||COUNTRY_CURRENCY[country]||DEFAULT_CURRENCY;
   const client=await pool.connect(); let row;
   try {
     await client.query("BEGIN");
