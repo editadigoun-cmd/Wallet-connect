@@ -1,5 +1,5 @@
 import {money} from "../services/format.js";import {state} from "../state.js";import {transferApi} from "../api/transfers.js";
-export function initTransfers({api,toast,refresh,show}){
+export function initTransfers({toast,refresh}){
   const recipient=document.getElementById("recipient"),amount=document.getElementById("sendAmount"),form=document.getElementById("sendForm");
   function calcFee(a){
     const type=state.meData?.transfer_fee_type||"percentage", value=Number(state.meData?.transfer_fee_value||0);
