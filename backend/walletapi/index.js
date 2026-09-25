@@ -13,6 +13,15 @@ const ISO3_TO_ISO2 = Object.fromEntries(Object.entries(COUNTRY_ISO3).map(([k,v])
 let configCache={at:0,data:null};
 const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 5 });
 
+function providerBrand(provider=""){ 
+  const p=String(provider||"").toUpperCase();
+  if(p.includes("MTN")) return {name:"MTN Mobile Money",logo:""};
+  if(p.includes("MOOV")) return {name:"Moov Money",logo:""};
+  if(p.includes("AIRTEL")) return {name:"Airtel Money",logo:""};
+  if(p.includes("ORANGE")) return {name:"Orange Money",logo:""};
+  if(p.includes("WAVE")) return {name:"Wave",logo:""};
+  return {name:provider||"Moyen de paiement",logo:""};
+}
 function cors(headers = {}) {
   return {
     "Access-Control-Allow-Origin": PORTAL_ORIGIN,
