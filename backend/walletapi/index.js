@@ -119,13 +119,20 @@ async function pawapay(path, method, payload) {
   let data; try { data = JSON.parse(text); } catch { data = { raw: text }; }
   return { ok: r.ok, status: r.status, data };
 }
+async function activePaymentMethod(country) {
+  const r = await pool.query(`SELECT country_code,provider,method_code,currency FROM public.payment_methods WHERE country_code=$1 AND active=true AND supports_topup=true AND supports_withdrawal=true ORDER BY id LIMIT 1`,[country]);
+  return r.rows[0] || null;
+}
 async function createTopup(request, user) {
   const b = await body(request);
   const amount = amountInt(b.amount);
   const phone = normalizePhone(b.phone);
   if (!amount || !phone) return bad("Montant et numéro MTN requis");
   const key = idempotency(request, "topup-" + crypto.randomUUID());
-  const provider = b.provider || DEFAULT_PROVIDER;
+  const country = user.country_code || DEFAULT_COUNTRY;
+  const method = await activePaymentMethod(country);
+  if (!method) return bad("Aucun moyen de paiement n'est encore disponible dans ton pays");
+  const provider = method.provider;
   const client = await pool.connect();
   let row;
   try {
@@ -231,6 +238,10 @@ async function transfer(request,user) {
 async function withdraw(request,user) {
   const b=await body(request), amount=amountInt(b.amount), phone=normalizePhone(b.phone);
   if(!amount||!phone)return bad("Montant et numéro MTN requis");
+  const country = user.country_code || DEFAULT_COUNTRY;
+  const method = await activePaymentMethod(country);
+  if (!method) return bad("Aucun moyen de retrait n'est encore disponible dans ton pays");
+  const provider = method.provider;
   const key=idempotency(request,"withdraw-"+crypto.randomUUID()),c=await pool.connect();
   let row;
   try{
@@ -242,8 +253,6 @@ async function withdraw(request,user) {
     const before=Number(w.rows[0].balance);
     if(before<amount)throw Object.assign(new Error("Solde insuffisant"),{status:409});
     const ref="WDR-"+crypto.randomUUID();
-    const provider = b.provider || DEFAULT_PROVIDER;
-    const country = user.country_code || DEFAULT_COUNTRY;
     const ins=await c.query(`INSERT INTO public.withdrawals(reference,wallet_id,amount,fee_amount,currency,provider,status,destination_type,destination_account,metadata,idempotency_key)
       VALUES($1,$2,$3,0,'XAF',$4,'processing','mobile_money',$5,$6,$7) RETURNING *`,
       [ref,w.rows[0].id,amount,provider,phone,JSON.stringify({provider,country}),key]);
