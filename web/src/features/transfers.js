@@ -1,4 +1,4 @@
-import {money} from "../services/format.js";import {state} from "../state.js";
+import {money} from "../services/format.js";import {state} from "../state.js";import {transferApi} from "../api/transfers.js";
 export function initTransfers({api,toast,refresh,show}){
   const recipient=document.getElementById("recipient"),amount=document.getElementById("sendAmount"),form=document.getElementById("sendForm");
   function calcFee(a){
@@ -15,7 +15,7 @@ export function initTransfers({api,toast,refresh,show}){
     if(!window.confirm("Confirmer l'envoi de "+money(a,currency)+" à "+r+" ?\nFrais : "+money(fee,currency)+"\nTotal débité : "+money(a+fee,currency)))return;
     const btn=form.querySelector("button[type=submit]");btn.disabled=true;btn.classList.add("loading");
     try{
-      await api("/transfer",{method:"POST",headers:{"Idempotency-Key":"transfer-"+crypto.randomUUID()},body:JSON.stringify({recipient:r,amount:a})});
+      await transferApi.send({recipient:r,amount:a});
       toast("Transfert effectué","success");form.reset();document.getElementById("sendFee").textContent=money(0,currency);document.getElementById("sendTotal").textContent=money(0,currency);await refresh();show("activity");
     }catch(ex){toast(ex.message,"error")}finally{btn.disabled=false;btn.classList.remove("loading")}
   })
