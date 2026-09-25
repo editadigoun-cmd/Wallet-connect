@@ -37,7 +37,6 @@ export function render(){
   document.getElementById("profileAvatar").textContent=name.charAt(0).toUpperCase();const headerAvatar=document.getElementById("headerAvatar");if(headerAvatar)headerAvatar.textContent=name.charAt(0).toUpperCase();
   document.getElementById("profileFullName").value=state.meData?.full_name||"";
   document.getElementById("profilePhone").value=state.meData?.phone||"";
-  const country=state.meData?.country_code||"";
   fillCountries("profileCountrySelect",country);
   document.getElementById("profileCountry").textContent=country?(flag(country)+" "+((COUNTRY_NAMES&&COUNTRY_NAMES.of(country))||country)):"Pays non renseigné";
   const kyc=document.getElementById("kycStatus");if(kyc)kyc.textContent=state.meData?.kyc_status==="verified"?"Vérifié":"›";
