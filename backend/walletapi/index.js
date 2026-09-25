@@ -74,7 +74,7 @@ async function authProxy(request, path) {
   if (ct) headers.set("content-type", ct);
   headers.set("origin", PORTAL_ORIGIN);
   const cookie = cookieHeader(request); if (cookie) headers.set("cookie", cookie);
-  const init = { method: request.method, headers };
+  const init = { method: request.method, headers, redirect: "manual" };
   if (request.method !== "GET" && request.method !== "HEAD") init.body = await request.text();
   let upstream;
   try {
@@ -84,10 +84,12 @@ async function authProxy(request, path) {
     return json({ok:false,error:"Service d'authentification temporairement indisponible.",code:"AUTH_UPSTREAM_UNAVAILABLE"},502);
   }
   const out = new Headers(cors({ "Content-Type": upstream.headers.get("content-type") || "application/json" }));
-  const setCookies = typeof upstream.headers.getSetCookie === "function" ? upstream.headers.getSetCookie() : [];
-  const pairs = setCookies.map(c => c.split(";")[0]).filter(Boolean);
+  if (upstream.status >= 300 && upstream.status < 400) return json({ok:false,error:"Le service d'authentification a renvoyé une redirection inattendue.",code:"AUTH_REDIRECT"},502);
+  const setCookies = typeof upstream.headers.getSetCookie === "function" ? upstream.headers.getSetCookie() : (upstream.headers.get("set-cookie") ? [upstream.headers.get("set-cookie")] : []);
+  const pairs = setCookies.flatMap(c => String(c).split(/,(?=[^;]+?=)/)).map(c => c.split(";")[0]).filter(Boolean);
   if (pairs.length) out.append("Set-Cookie", "wallet_auth=" + encodeURIComponent(Buffer.from(pairs.join("; ")).toString("base64url")) + "; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=604800");
   if (path === "/sign-out") out.append("Set-Cookie", "wallet_auth=; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=0");
+  out.set("Cache-Control","no-store");
   return new Response(await upstream.text(), { status: upstream.status, headers: out });
 }
 async function getSession(request) {
