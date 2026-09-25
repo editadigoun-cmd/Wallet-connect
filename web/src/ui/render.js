@@ -25,7 +25,7 @@ export function render(){
   document.querySelector(".greeting h1").textContent="Bonjour "+name.split(" ")[0]+" 👋";
   document.getElementById("profileName").textContent=name;
   document.getElementById("profileEmail").textContent=state.meData?.email||"Compte personnel";
-  document.getElementById("profileAvatar").textContent=name.charAt(0).toUpperCase();
+  document.getElementById("profileAvatar").textContent=name.charAt(0).toUpperCase();const headerAvatar=document.getElementById("headerAvatar");if(headerAvatar)headerAvatar.textContent=name.charAt(0).toUpperCase();
   document.getElementById("profileFullName").value=state.meData?.full_name||"";
   document.getElementById("profilePhone").value=state.meData?.phone||"";
   const country=state.meData?.country_code||"";
