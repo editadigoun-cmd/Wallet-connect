@@ -1,44 +1,112 @@
 <!doctype html>
 <html lang="fr">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="theme-color" content="#111827" />
-  <meta name="description" content="Wallet Connect — portefeuille et transferts" />
-  <title>Wallet Connect</title>
-  <link rel="manifest" href="manifest.webmanifest" />
-  <style>
-    :root{font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#111827;background:#f5f7fb}
-    *{box-sizing:border-box}body{margin:0}button,input{font:inherit}.app{min-height:100vh}.shell{width:min(1100px,100%);margin:auto;padding:20px}.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}.brand{font-weight:800;font-size:22px}.badge{font-size:12px;padding:6px 10px;border-radius:999px;background:#e8eefc;color:#334155}.hero{background:#111827;color:#fff;border-radius:24px;padding:24px;margin-bottom:16px}.hero small{opacity:.7}.balance{font-size:38px;font-weight:800;margin:8px 0 18px}.actions{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.actions button,.nav button{border:0;border-radius:14px;padding:13px;cursor:pointer}.actions button{background:#fff;color:#111827;font-weight:700}.grid{display:grid;grid-template-columns:1.3fr .7fr;gap:16px}.card{background:#fff;border:1px solid #e8ebf0;border-radius:20px;padding:18px}.card h2{font-size:17px;margin:0 0 14px}.tx{display:flex;justify-content:space-between;gap:12px;padding:14px 0;border-bottom:1px solid #edf0f4}.tx:last-child{border-bottom:0}.muted{color:#64748b;font-size:13px}.positive{color:#059669;font-weight:700}.negative{color:#dc2626;font-weight:700}.nav{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-top:16px}.nav button{background:#fff;border:1px solid #e5e7eb;color:#334155}.nav button.active{background:#111827;color:#fff}.panel{display:none;margin-top:16px}.panel.active{display:block}.form{display:grid;gap:12px}.form input{width:100%;padding:13px;border:1px solid #d9dee7;border-radius:12px}.primary{background:#111827;color:#fff;border:0;border-radius:12px;padding:13px;font-weight:700;cursor:pointer}.notice{padding:12px;border-radius:12px;background:#fff7ed;color:#9a3412;font-size:13px;margin-top:12px}.admin{margin-top:16px}.footer{text-align:center;color:#94a3b8;font-size:12px;padding:28px 0}
-    @media(max-width:700px){.shell{padding:14px}.grid{grid-template-columns:1fr}.actions{grid-template-columns:1fr 1fr 1fr}.nav{grid-template-columns:repeat(3,1fr)}.balance{font-size:32px}.top{margin-bottom:12px}}
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0f766e">
+<meta name="description" content="Wallet Connect — transferts et portefeuille mobile">
+<title>Wallet Connect</title>
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#12201e;background:#f4f8f7;--primary:#0f766e;--primary2:#14b8a6;--soft:#e7f6f3;--ink:#12201e;--muted:#71807d;--line:#e4ecea;--card:#fff;--danger:#dc5b64;--success:#159570}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:#f4f8f7}body{padding-bottom:92px}button,input{font:inherit}button{cursor:pointer}.app{min-height:100vh}.shell{width:min(1080px,100%);margin:auto;padding:18px 18px 110px}.topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}.brand{display:flex;align-items:center;gap:10px}.logo{width:42px;height:42px;border-radius:14px;background:linear-gradient(145deg,#14b8a6,#0f766e);display:grid;place-items:center;color:#fff;font-weight:900;box-shadow:0 8px 20px #0f766e25}.brand strong{font-size:20px;letter-spacing:-.4px}.brand small{display:block;color:var(--muted);font-size:11px;margin-top:1px}.avatar{width:42px;height:42px;border-radius:50%;border:1px solid var(--line);background:#fff;color:var(--primary);font-weight:800}.screen{display:none;animation:in .18s ease}.screen.active{display:block}@keyframes in{from{opacity:.4;transform:translateY(5px)}to{opacity:1;transform:none}}.greeting{margin:10px 0 16px}.greeting h1{font-size:25px;line-height:1.1;margin:0 0 5px;letter-spacing:-.7px}.muted{color:var(--muted);font-size:13px}.balance-card{position:relative;overflow:hidden;background:linear-gradient(135deg,#0f766e,#0b5f59);color:#fff;border-radius:28px;padding:23px;box-shadow:0 16px 35px #0f766e25}.balance-card:after{content:"";position:absolute;width:190px;height:190px;border:1px solid #ffffff25;border-radius:50%;right:-70px;top:-70px}.balance-card:before{content:"";position:absolute;width:120px;height:120px;border:1px solid #ffffff1c;border-radius:50%;right:15px;bottom:-75px}.balance-label{font-size:12px;opacity:.72}.balance{font-size:36px;font-weight:850;letter-spacing:-1.5px;margin:5px 0 17px}.balance-row{display:flex;justify-content:space-between;align-items:center}.currency{font-size:12px;background:#ffffff18;border:1px solid #ffffff25;padding:6px 10px;border-radius:999px}.eye{border:0;background:#ffffff12;color:#fff;width:35px;height:35px;border-radius:11px}.quick{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:16px 0 20px}.quick button{border:1px solid var(--line);background:#fff;border-radius:18px;padding:14px 8px;color:var(--ink);font-weight:750;box-shadow:0 5px 16px #183c3620}.quick .qicon{width:38px;height:38px;border-radius:13px;margin:0 auto 8px;display:grid;place-items:center;background:var(--soft);color:var(--primary)}.section-head{display:flex;align-items:center;justify-content:space-between;margin:22px 2px 10px}.section-head h2{font-size:16px;margin:0}.link{border:0;background:none;color:var(--primary);font-size:12px;font-weight:750}.card{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:17px;box-shadow:0 7px 24px #183c3610}.tx{display:flex;align-items:center;gap:12px;padding:13px 0;border-bottom:1px solid #edf2f1}.tx:last-child{border-bottom:0;padding-bottom:0}.tx:first-child{padding-top:0}.txicon{width:42px;height:42px;flex:0 0 42px;border-radius:14px;display:grid;place-items:center;background:var(--soft);color:var(--primary);font-weight:800}.txmain{min-width:0;flex:1}.txmain strong{display:block;font-size:13px}.txmain span{display:block;color:var(--muted);font-size:11px;margin-top:3px}.txamount{font-weight:800;font-size:13px}.positive{color:var(--success)}.negative{color:var(--danger)}.grid{display:grid;grid-template-columns:1.15fr .85fr;gap:16px}.mini-stat{display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-bottom:1px solid var(--line)}.mini-stat:last-child{border:0;padding-bottom:0}.mini-stat strong{font-size:14px}.mini-stat span{font-size:12px;color:var(--muted)}.form{display:grid;gap:12px}.field label{display:block;font-size:12px;font-weight:750;margin:0 0 6px;color:#52625f}.field input,.field select{width:100%;border:1px solid #dbe5e2;background:#fbfdfc;border-radius:14px;padding:14px 13px;outline:0;color:var(--ink)}.field input:focus,.field select:focus{border-color:#79cfc4;box-shadow:0 0 0 4px #14b8a61a}.primary{width:100%;border:0;border-radius:15px;padding:14px;background:var(--primary);color:#fff;font-weight:800}.secondary{width:100%;border:1px solid #cfe2de;border-radius:15px;padding:13px;background:#fff;color:var(--primary);font-weight:800}.notice{margin-top:12px;padding:12px 13px;border-radius:14px;background:#f0faf8;color:#35635e;font-size:12px;line-height:1.45}.recipient{display:flex;align-items:center;gap:12px;background:#f5faf9;border:1px solid var(--line);border-radius:16px;padding:12px}.recipient-avatar{width:44px;height:44px;border-radius:50%;background:#d7f3ee;color:var(--primary);display:grid;place-items:center;font-weight:850}.amount-big{font-size:34px;font-weight:850;text-align:center;margin:8px 0 20px}.amount-big input{text-align:center;border:0;background:transparent;font-size:34px;font-weight:850;width:100%;outline:0;color:var(--ink)}.tabs{display:flex;gap:7px;overflow:auto;margin-bottom:12px}.tab{border:1px solid var(--line);background:#fff;color:#687875;padding:8px 12px;border-radius:999px;font-size:12px;white-space:nowrap}.tab.active{background:var(--soft);color:var(--primary);border-color:#b9e4de;font-weight:750}.profile-head{display:flex;align-items:center;gap:13px;padding:4px 0 18px}.profile-avatar{width:62px;height:62px;border-radius:21px;background:linear-gradient(145deg,#14b8a6,#0f766e);color:#fff;display:grid;place-items:center;font-size:21px;font-weight:850}.profile-head h2{margin:0 0 3px;font-size:18px}.menu-list{overflow:hidden}.menu-item{width:100%;border:0;border-bottom:1px solid var(--line);background:#fff;padding:15px 2px;display:flex;align-items:center;gap:12px;text-align:left;color:var(--ink)}.menu-item:last-child{border:0}.menu-item .mi{width:37px;height:37px;border-radius:12px;background:var(--soft);color:var(--primary);display:grid;place-items:center;font-weight:800}.menu-item span{flex:1;font-size:13px;font-weight:700}.menu-item em{font-style:normal;color:#9aa8a5}.empty{text-align:center;padding:28px 12px;color:var(--muted);font-size:13px}.bottom{position:fixed;z-index:20;left:50%;bottom:0;transform:translateX(-50%);width:min(620px,100%);padding:8px 10px calc(8px + env(safe-area-inset-bottom));background:#ffffffee;backdrop-filter:blur(18px);border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(5,1fr)}.bottom button{border:0;background:none;color:#82908d;display:grid;place-items:center;gap:3px;font-size:10px;font-weight:650;padding:5px 2px}.bottom button.active{color:var(--primary)}.bottom .bi{width:28px;height:28px;border-radius:10px;display:grid;place-items:center;font-size:15px}.bottom button.active .bi{background:var(--soft)}.toast{position:fixed;z-index:50;left:50%;bottom:88px;transform:translate(-50%,20px);opacity:0;pointer-events:none;background:#173a35;color:#fff;padding:11px 15px;border-radius:13px;font-size:12px;transition:.2s;box-shadow:0 10px 25px #173a3535}.toast.show{opacity:1;transform:translate(-50%,0)}.footer{text-align:center;color:#9aa8a5;font-size:11px;margin-top:28px}
+@media(max-width:720px){.shell{padding:14px 14px 105px}.grid{grid-template-columns:1fr}.balance{font-size:33px}.topbar{margin-bottom:8px}}
+@media(min-width:721px){body{padding-bottom:0}.bottom{position:sticky;top:10px;bottom:auto;margin:0 auto 20px;border:1px solid var(--line);border-radius:20px;width:min(680px,calc(100% - 36px));box-shadow:0 8px 25px #183c3610}.shell{padding-bottom:30px}}
+</style>
 </head>
 <body>
-<div class="app"><main class="shell">
-  <header class="top"><div class="brand">Wallet Connect</div><div class="badge">MVP • PawaPay</div></header>
-  <section class="hero"><small>Solde disponible</small><div class="balance" id="balance">0 FCFA</div><div class="actions"><button type="button" data-panel="send">Envoyer</button><button type="button" data-panel="topup">Recharger</button><button type="button" data-panel="withdraw">Retirer</button></div></section>
-  <div class="grid">
-    <section class="card"><h2>Dernières transactions</h2><div id="transactions"><div class="tx"><div><strong>Aucune transaction</strong><div class="muted">Ton historique apparaîtra ici.</div></div><span>—</span></div></div></section>
-    <section class="card"><h2>Ton portefeuille</h2><div class="muted">Devise principale</div><strong>FCFA (XOF)</strong><div style="height:12px"></div><div class="muted">Frais</div><strong>Configurables par l'administrateur</strong></section>
+<div class="app">
+<main class="shell">
+<header class="topbar">
+  <div class="brand"><div class="logo">W</div><div><strong>Wallet Connect</strong><small>Paiements simples, partout</small></div></div>
+  <button class="avatar" type="button" data-screen="profile">A</button>
+</header>
+
+<section id="home" class="screen active">
+  <div class="greeting"><h1>Bonjour 👋</h1><div class="muted">Voici l'état de ton portefeuille</div></div>
+  <div class="balance-card"><div class="balance-label">Solde disponible</div><div class="balance" id="balance">0 FCFA</div><div class="balance-row"><span class="currency">XAF • Principal</span><button class="eye" type="button" id="toggleBalance">◉</button></div></div>
+  <div class="quick">
+    <button type="button" data-screen="send"><div class="qicon">↗</div>Envoyer</button>
+    <button type="button" data-screen="wallet"><div class="qicon">＋</div>Recharger</button>
+    <button type="button" data-screen="wallet"><div class="qicon">↓</div>Retirer</button>
   </div>
-  <nav class="nav"><button type="button" class="active" data-panel="home">Accueil</button><button type="button" data-panel="send">Envoyer</button><button type="button" data-panel="topup">Recharger</button><button type="button" data-panel="withdraw">Retirer</button><button type="button" data-panel="history">Transactions</button><button type="button" data-panel="profile">Profil</button></nav>
-  <section id="send" class="panel card"><h2>Envoyer de l'argent</h2><form class="form" onsubmit="demoTransfer(event)"><input id="recipient" required placeholder="Téléphone ou identifiant du destinataire"/><input id="sendAmount" type="number" min="1" required placeholder="Montant en FCFA"/><button class="primary">Confirmer le transfert</button></form><div class="notice">Mode démo : le vrai transfert sera branché au backend Neon avant les tests réels.</div></section>
-  <section id="topup" class="panel card"><h2>Recharger</h2><form class="form" onsubmit="demoAction(event,'Recharge')"><input type="number" min="1" required placeholder="Montant en FCFA"/><button class="primary">Continuer avec PawaPay</button></form><div class="notice">PawaPay sera appelé uniquement depuis le backend sécurisé. Le token PawaPay ne sera jamais exposé dans l'application.</div></section>
-  <section id="withdraw" class="panel card"><h2>Retirer</h2><form class="form" onsubmit="demoAction(event,'Retrait')"><input type="number" min="1" required placeholder="Montant en FCFA"/><input required placeholder="Numéro MTN"/><button class="primary">Demander le retrait</button></form><div class="notice">Le retrait passe par PawaPay. La disponibilité exacte de l'opérateur et les limites dépendent du pays et de la configuration de ton compte PawaPay.</div></section>
-  <section id="history" class="panel card"><h2>Historique</h2><div class="muted">Les opérations réelles seront chargées depuis Neon.</div></section>
-  <section id="profile" class="panel card"><h2>Profil</h2><div class="form"><input placeholder="Nom"/><input placeholder="Téléphone"/><button class="primary" onclick="alert('Profil démo')">Enregistrer</button></div></section>
-  <section class="admin card"><h2>Admin — aperçu</h2><div class="muted">Utilisateurs • Wallets • Transferts • Recharges • Retraits • Frais • Moyens de paiement</div></section>
-  <div class="footer">Wallet Connect — MVP • PawaPay</div>
-</main></div>
+  <div class="section-head"><h2>Activité récente</h2><button class="link" type="button" data-screen="activity">Voir tout</button></div>
+  <div class="card" id="homeTransactions"><div class="empty">Aucune transaction pour le moment</div></div>
+  <div class="grid" style="margin-top:16px">
+    <div class="card"><div class="section-head" style="margin-top:0"><h2>Mon portefeuille</h2></div><div class="mini-stat"><div><strong>Devise</strong><span>Solde principal</span></div><strong>XAF</strong></div><div class="mini-stat"><div><strong>Frais d'envoi</strong><span>Configuration actuelle</span></div><strong>1%</strong></div><div class="mini-stat"><div><strong>Retrait</strong><span>Frais plateforme</span></div><strong>0 XAF</strong></div></div>
+    <div class="card"><div class="section-head" style="margin-top:0"><h2>Besoin d'aide ?</h2></div><p class="muted" style="line-height:1.6">Consulte les informations du service et les moyens de paiement disponibles dans ton pays.</p><button class="secondary" type="button" data-screen="profile">Mon profil</button></div>
+  </div>
+</section>
+
+<section id="send" class="screen">
+  <div class="greeting"><h1>Envoyer de l'argent</h1><div class="muted">Transfère rapidement à un autre utilisateur.</div></div>
+  <div class="card">
+    <form class="form" id="sendForm">
+      <div class="field"><label>Destinataire</label><input id="recipient" required placeholder="Téléphone ou identifiant"></div>
+      <div class="recipient"><div class="recipient-avatar" id="recipientAvatar">?</div><div><strong id="recipientName">Destinataire</strong><div class="muted">Utilisateur Wallet Connect</div></div></div>
+      <div class="field"><label>Montant</label><div class="amount-big"><input id="sendAmount" type="number" min="1" required placeholder="0"></div></div>
+      <div class="mini-stat"><div><strong>Frais d'envoi</strong><span>1% du montant</span></div><strong id="sendFee">0 XAF</strong></div>
+      <div class="mini-stat"><div><strong>Total débité</strong><span>Montant + frais</span></div><strong id="sendTotal">0 XAF</strong></div>
+      <button class="primary" type="submit">Continuer</button>
+      <div class="notice">Le transfert réel sera exécuté par le backend sécurisé. Aucun secret PawaPay n'est stocké dans cette interface.</div>
+    </form>
+  </div>
+</section>
+
+<section id="activity" class="screen">
+  <div class="greeting"><h1>Activité</h1><div class="muted">Toutes tes opérations au même endroit.</div></div>
+  <div class="tabs"><button class="tab active" type="button">Tout</button><button class="tab" type="button">Envoyés</button><button class="tab" type="button">Reçus</button><button class="tab" type="button">Recharges</button><button class="tab" type="button">Retraits</button></div>
+  <div class="card" id="activityList"><div class="empty">Aucune transaction pour le moment</div></div>
+</section>
+
+<section id="wallet" class="screen">
+  <div class="greeting"><h1>Portefeuille</h1><div class="muted">Gère ton argent et tes moyens de paiement.</div></div>
+  <div class="card" style="margin-bottom:14px"><div class="balance-label" style="color:var(--muted)">Solde disponible</div><div class="balance" style="color:var(--ink);margin-bottom:3px" id="walletBalance">0 FCFA</div><div class="muted">Compte principal • XAF</div></div>
+  <div class="card" style="margin-bottom:14px"><div class="section-head" style="margin-top:0"><h2>Recharger</h2></div><form class="form" id="topupForm"><div class="field"><label>Montant</label><input id="topupAmount" type="number" min="1" required placeholder="Montant en FCFA"></div><div class="field"><label>Moyen de paiement</label><select><option>MTN Mobile Money</option></select></div><button class="primary" type="submit">Continuer avec MTN</button></form></div>
+  <div class="card"><div class="section-head" style="margin-top:0"><h2>Retirer</h2></div><form class="form" id="withdrawForm"><div class="field"><label>Montant</label><input id="withdrawAmount" type="number" min="1" required placeholder="Montant en FCFA"></div><div class="field"><label>Numéro MTN</label><input id="withdrawPhone" required placeholder="Ex. 06 XX XX XX XX"></div><button class="secondary" type="submit">Demander le retrait</button></form></div>
+  <div class="notice">MTN Mobile Money est le moyen configuré pour le premier test Congo-Brazzaville. La disponibilité réelle dépend de la configuration active de ton compte PawaPay.</div>
+</section>
+
+<section id="profile" class="screen">
+  <div class="greeting"><h1>Profil</h1><div class="muted">Ton compte Wallet Connect.</div></div>
+  <div class="card"><div class="profile-head"><div class="profile-avatar">A</div><div><h2>Utilisateur</h2><div class="muted">Compte personnel</div></div></div><div class="menu-list">
+    <button class="menu-item" type="button"><div class="mi">◎</div><span>Informations personnelles</span><em>›</em></button>
+    <button class="menu-item" type="button"><div class="mi">▣</div><span>Vérification du compte</span><em>›</em></button>
+    <button class="menu-item" type="button"><div class="mi">▤</div><span>Moyens de paiement</span><em>›</em></button>
+    <button class="menu-item" type="button"><div class="mi">?</div><span>Aide & support</span><em>›</em></button>
+    <button class="menu-item" type="button"><div class="mi">⚙</div><span>Paramètres</span><em>›</em></button>
+  </div></div>
+  <div class="notice">Version MVP • Architecture prévue pour une application mobile native et un backend sécurisé.</div>
+</section>
+
+<div class="footer">Wallet Connect • Paiements sécurisés</div>
+</main>
+<nav class="bottom" aria-label="Navigation principale">
+  <button class="active" type="button" data-screen="home"><div class="bi">⌂</div>Accueil</button>
+  <button type="button" data-screen="send"><div class="bi">↗</div>Envoyer</button>
+  <button type="button" data-screen="activity"><div class="bi">◷</div>Activité</button>
+  <button type="button" data-screen="wallet"><div class="bi">▣</div>Portefeuille</button>
+  <button type="button" data-screen="profile"><div class="bi">●</div>Profil</button>
+</nav>
+<div class="toast" id="toast"></div>
+</div>
 <script>
-let balance=0;
-function showPanel(id,btn){document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));if(id!=='home'){const panel=document.getElementById(id);if(panel)panel.classList.add('active');}document.querySelectorAll('.nav button').forEach(x=>x.classList.remove('active'));document.querySelectorAll('[data-panel="'+id+'"]').forEach(x=>{if(x.closest('.nav'))x.classList.add('active')});if(btn&&btn.closest('.nav'))btn.classList.add('active');window.scrollTo({top:0,behavior:'smooth'});}
-function demoTransfer(e){e.preventDefault();const amount=Number(document.getElementById('sendAmount').value);if(amount>balance){alert('Solde insuffisant en mode démo.');return}balance-=amount;renderBalance();addTx('Transfert envoyé','-'+amount.toLocaleString('fr-FR')+' FCFA','negative');e.target.reset();alert('Transfert démo enregistré.');}
-function demoAction(e,label){e.preventDefault();const form=e.target;const amount=Number(form.querySelector('input[type="number"]')?.value||0);if(!amount||amount<1){alert('Saisis un montant valide.');return;}addTx(label+' — demande enregistrée',amount.toLocaleString('fr-FR')+' FCFA','positive');form.reset();alert(label+' : demande enregistrée dans le mode de démonstration.');}
-function addTx(label,value,cls){const box=document.getElementById('transactions');if(box.textContent.includes('Aucune transaction'))box.innerHTML='';box.insertAdjacentHTML('afterbegin',`<div class="tx"><div><strong>${label}</strong><div class="muted">À l'instant</div></div><span class="${cls||''}">${value}</span></div>`);}
-function renderBalance(){document.getElementById('balance').textContent=balance.toLocaleString('fr-FR')+' FCFA'}
-document.querySelectorAll('[data-panel]').forEach(button=>button.addEventListener('click',()=>showPanel(button.dataset.panel,button)));
-document.querySelectorAll('form').forEach(form=>form.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.tagName==='INPUT'){e.stopPropagation();}}));
-renderBalance();
+let balance=0, hidden=false, txs=[];
+const money=n=>Number(n||0).toLocaleString('fr-FR')+' XAF';
+const toast=(m)=>{const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');clearTimeout(window.__toast);window.__toast=setTimeout(()=>t.classList.remove('show'),2200)};
+function render(){document.getElementById('balance').textContent=hidden?'••••••':money(balance);document.getElementById('walletBalance').textContent=hidden?'••••••':money(balance);renderTx('homeTransactions',3);renderTx('activityList',50)}
+function renderTx(id,limit){const box=document.getElementById(id);if(!txs.length){box.innerHTML='<div class="empty">Aucune transaction pour le moment</div>';return}box.innerHTML=txs.slice(0,limit).map(t=>'<div class="tx"><div class="txicon">'+t.icon+'</div><div class="txmain"><strong>'+t.label+'</strong><span>'+t.time+'</span></div><div class="txamount '+t.cls+'">'+t.value+'</div></div>').join('')}
+function addTx(label,value,cls,icon){txs.unshift({label,value,cls,icon,time:"À l'instant"});render()}
+function show(id){document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('active',s.id===id));document.querySelectorAll('[data-screen]').forEach(b=>b.classList.toggle('active',b.dataset.screen===id&&b.closest('.bottom')));window.scrollTo({top:0,behavior:'smooth'})}
+document.querySelectorAll('[data-screen]').forEach(b=>b.addEventListener('click',()=>show(b.dataset.screen)));
+document.getElementById('toggleBalance').addEventListener('click',()=>{hidden=!hidden;render()});
+document.getElementById('recipient').addEventListener('input',e=>{const v=e.target.value.trim();document.getElementById('recipientName').textContent=v||'Destinataire';document.getElementById('recipientAvatar').textContent=v?v.charAt(0).toUpperCase():'?'});
+document.getElementById('sendAmount').addEventListener('input',e=>{const a=Number(e.target.value||0),fee=a*.01;document.getElementById('sendFee').textContent=money(fee);document.getElementById('sendTotal').textContent=money(a+fee)});
+document.getElementById('sendForm').addEventListener('submit',e=>{e.preventDefault();const a=Number(document.getElementById('sendAmount').value||0);if(!a)return;if(a*1.01>balance){toast('Solde insuffisant');return}balance-=a*1.01;addTx('Transfert envoyé','−'+money(a),'negative','↗');e.target.reset();document.getElementById('sendFee').textContent=money(0);document.getElementById('sendTotal').textContent=money(0);show('activity');toast('Transfert enregistré en mode aperçu')});
+document.getElementById('topupForm').addEventListener('submit',e=>{e.preventDefault();const a=Number(document.getElementById('topupAmount').value||0);if(!a)return;addTx('Recharge MTN','+'+money(a),'positive','＋');e.target.reset();toast('Recharge prête — backend PawaPay à brancher')});
+document.getElementById('withdrawForm').addEventListener('submit',e=>{e.preventDefault();const a=Number(document.getElementById('withdrawAmount').value||0);if(!a)return;if(a>balance){toast('Solde insuffisant');return}addTx('Retrait MTN','−'+money(a),'negative','↓');e.target.reset();toast('Demande de retrait enregistrée en aperçu')});
+document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));b.classList.add('active');toast('Filtre '+b.textContent)}));
+render();
 </script>
-</body></html>
+</body>
+</html>
