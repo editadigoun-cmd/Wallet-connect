@@ -133,37 +133,32 @@ async function pawapay(path, method, payload) {
 }
 async function availableProviders(country,kind){
   const iso3=COUNTRY_ISO3[country]||country;
-  const live=await pawapay("/availability?country="+encodeURIComponent(iso3)+"&operationType="+encodeURIComponent(kind),"GET");
-  if(live.ok){
-    const bucket=Array.isArray(live.data)?live.data.find(x=>x.country===iso3):live.data;
-    const providers=bucket?.providers||bucket?.correspondents||[];
-    const operational=providers.filter(x=>{
-      const ops=Array.isArray(x.operationTypes)?x.operationTypes:[];
-      const op=ops.find(o=>o&&o.operationType===kind);
-      return op && (op.status===undefined || op.status==="OPERATIONAL");
-    });
-    if(operational.length) return operational.map(x=>{
-      const correspondent=x.provider||x.correspondent;
-      const brand=providerBrand(correspondent);
-      const ops=Array.isArray(x.operationTypes)?x.operationTypes:[];
-      const op=ops.find(o=>o&&o.operationType===kind)||{};
-      return {...x,correspondent,currency:x.currency||COUNTRY_CURRENCY[country]||DEFAULT_CURRENCY,status:op.status||"OPERATIONAL",displayName:x.displayName||x.name||brand.name,logo:x.logo||x.logoUrl||brand.logo};
-    });
-  }
-  // If PawaPay availability is reachable but returns no active provider for a configured market,
-  // use the local merchant configuration instead of incorrectly showing an empty selector.
-  const rows=await pool.query(`SELECT provider,currency FROM public.payment_methods WHERE country_code=$1 AND active=true AND ((supports_topup=true AND $2='DEPOSIT') OR (supports_withdrawal=true AND $2='PAYOUT')) ORDER BY id`,[country,kind]);
-  if(rows.rows.length) return rows.rows.map(x=>{const brand=providerBrand(x.provider);return {provider:x.provider,correspondent:x.provider,currency:x.currency||COUNTRY_CURRENCY[country]||DEFAULT_CURRENCY,status:"UNKNOWN",displayName:brand.name,logo:brand.logo,operationTypes:[{operationType:kind,status:"UNKNOWN"}]};});
-  // Benin supports MTN Mobile Money and Moov Money; keep them visible when
-  // provider availability is temporarily incomplete but the merchant is configured for Benin.
-  if(country==="BEN"){
-    const fallback=[
-      {correspondent:"MTN_MOMO_BEN",currency:"XOF",displayName:"MTN Mobile Money",status:"OPERATIONAL",operationTypes:[{operationType:kind,status:"OPERATIONAL"}]},
-      {correspondent:"MOOV_BEN",currency:"XOF",displayName:"Moov Money",status:"OPERATIONAL",operationTypes:[{operationType:kind,status:"OPERATIONAL"}]}
-    ];
-    return fallback;
-  }
-  return [];
+  const active=await pawapay("/active-conf","GET");
+  if(!active.ok){ console.error("PAWAPAY_ACTIVE_CONF_ERROR",active.status,active.data); return []; }
+  const countries=Array.isArray(active.data?.countries)?active.data.countries:[];
+  const cc=countries.find(x=>String(x.country||"").toUpperCase()===String(iso3).toUpperCase());
+  const correspondents=Array.isArray(cc?.correspondents)?cc.correspondents:[];
+  const configured=correspondents.map(x=>{
+    const correspondent=x.correspondent||x.provider;
+    const ops=Array.isArray(x.operationTypes)?x.operationTypes:[];
+    const op=ops.find(o=>o&&o.operationType===kind);
+    if(!correspondent||!op)return null;
+    const brand=providerBrand(correspondent);
+    return {...x,correspondent,provider:correspondent,currency:x.currency||COUNTRY_CURRENCY[country]||DEFAULT_CURRENCY,displayName:x.displayName||x.name||brand.name,logo:x.logo||x.logoUrl||brand.logo,operationTypes:ops,activeOperation:op};
+  }).filter(Boolean);
+  if(!configured.length)return [];
+  const live=await pawapay("/availability","GET");
+  if(!live.ok){ console.error("PAWAPAY_AVAILABILITY_ERROR",live.status,live.data); return []; }
+  const availabilityCountries=Array.isArray(live.data)?live.data:[];
+  const ac=availabilityCountries.find(x=>String(x.country||"").toUpperCase()===String(iso3).toUpperCase());
+  const available=Array.isArray(ac?.correspondents)?ac.correspondents:[];
+  return configured.map(cfg=>{
+    const liveProvider=available.find(x=>(x.correspondent||x.provider)===cfg.correspondent);
+    const liveOps=Array.isArray(liveProvider?.operationTypes)?liveProvider.operationTypes:[];
+    const liveOp=liveOps.find(o=>o&&o.operationType===kind);
+    const status=String(liveOp?.status||"CLOSED").toUpperCase();
+    return {...cfg,status,operationTypes:liveOps.length?liveOps:cfg.operationTypes};
+  }).filter(x=>x.status==="OPERATIONAL");
 }
 async function activePaymentMethod(country){
   const providers=await availableProviders(country,"DEPOSIT");
