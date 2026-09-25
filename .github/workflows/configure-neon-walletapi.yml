@@ -25,5 +25,4 @@ jobs:
           curl --fail-with-body -sS -X POST \
             "https://console.neon.tech/api/v2/projects/green-violet-58373553/branches/br-fragrant-moon-b4qxibei/functions/walletapi/deployments" \
             -H "Authorization: Bearer $NEON_API_KEY" \
-            -H "Content-Type: application/json" \
-            --data "$BODY"
+            -F "environment=$ENV_JSON"
