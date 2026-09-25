@@ -76,7 +76,13 @@ async function authProxy(request, path) {
   const cookie = cookieHeader(request); if (cookie) headers.set("cookie", cookie);
   const init = { method: request.method, headers };
   if (request.method !== "GET" && request.method !== "HEAD") init.body = await request.text();
-  const upstream = await fetch(url, init);
+  let upstream;
+  try {
+    upstream = await fetch(url, init);
+  } catch (e) {
+    console.error("AUTH_UPSTREAM_FETCH_ERROR", e);
+    return json({ok:false,error:"Service d'authentification temporairement indisponible.",code:"AUTH_UPSTREAM_UNAVAILABLE"},502);
+  }
   const out = new Headers(cors({ "Content-Type": upstream.headers.get("content-type") || "application/json" }));
   const setCookies = typeof upstream.headers.getSetCookie === "function" ? upstream.headers.getSetCookie() : [];
   const pairs = setCookies.map(c => c.split(";")[0]).filter(Boolean);
