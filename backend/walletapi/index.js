@@ -113,55 +113,27 @@ async function pawapay(path, method, payload) {
   const text = await r.text(); let data; try { data=JSON.parse(text); } catch { data={raw:text}; }
   return { ok:r.ok, status:r.status, data };
 }
-async function activeConfiguration(){
-  if(configCache.data && Date.now()-configCache.at<30000)return configCache.data;
-  const p=await pawapay("/active-conf","GET");
-  if(!p.ok)throw new Error("Impossible de récupérer les moyens de paiement PawaPay");
-  configCache={at:Date.now(),data:p.data}; return p.data;
-}
-function providerBrand(correspondent=""){
-  const s=String(correspondent).toUpperCase();
-  if(s.includes("MTN"))return {name:"MTN Mobile Money",logo:"https://cdn.simpleicons.org/mtn"};
-  if(s.includes("ORANGE"))return {name:"Orange Money",logo:"https://cdn.simpleicons.org/orange"};
-  if(s.includes("AIRTEL"))return {name:"Airtel Money",logo:"https://cdn.simpleicons.org/airtel"};
-  if(s.includes("VODAFONE"))return {name:"Vodafone Cash",logo:"https://cdn.simpleicons.org/vodafone"};
-  if(s.includes("MPESA"))return {name:"M-Pesa",logo:"https://cdn.simpleicons.org/mpesa"};
-  if(s.includes("MOOV"))return {name:"Moov Money",logo:"https://cdn.simpleicons.org/moov"};
-  if(s.includes("WAVE"))return {name:"Wave",logo:"https://cdn.simpleicons.org/wave"};
-  if(s.includes("TELECEL"))return {name:"Telecel",logo:""};
-  if(s.includes("TNM"))return {name:"TNM Mpamba",logo:""};
-  if(s.includes("HALOTEL"))return {name:"Halotel",logo:""};
-  if(s.includes("ZAMTEL"))return {name:"Zamtel Money",logo:""};
-  if(s.includes("OPAY"))return {name:"OPay",logo:""};
-  if(s.includes("PALMPAY"))return {name:"PalmPay",logo:""};
-  return {name:String(correspondent).replace(/_[A-Z]{3}$/i,"").replace(/_/g," "),logo:""};
-}
-function providerConfigs(country){
-  const iso3=COUNTRY_ISO3[country]||country;
-  const conf=configCache.data?.countries?.find(x=>x.country===iso3);
-  return conf?.correspondents||[];
-}
-function operationType(c,kind){
-  return (c.operationTypes||[]).find(x=>x.operationType===kind);
-}
 async function availableProviders(country,kind){
-  const conf=await activeConfiguration();
   const iso3=COUNTRY_ISO3[country]||country;
-  const c=conf?.countries?.find(x=>x.country===iso3);
-  if(!c)return [];
-  const configured=c.providers||c.correspondents||[];
-  const availability=await pawapay("/availability?country="+encodeURIComponent(iso3)+"&operationType="+encodeURIComponent(kind),"GET");
-  const av=availability.ok?(Array.isArray(availability.data)?availability.data.find(x=>x.country===iso3):null):null;
-  const liveProviders=av?.providers||av?.correspondents||[];
-  return configured.filter(x=>operationType(x,kind)).map(x=>{
-    const correspondent=x.correspondent||x.provider;
-    const a=liveProviders.find(y=>(y.provider||y.correspondent)===correspondent);
-    const op=a?.operationTypes?.find(y=>y.operationType===kind);
-    const brand=providerBrand(correspondent);
-    return {...x,correspondent,status:op?.status||"UNKNOWN",displayName:x.displayName||x.name||brand.name,logo:x.logo||x.logoUrl||brand.logo};
-  }).filter(x=>x.status==="OPERATIONAL");
+  const live=await pawapay("/availability?country="+encodeURIComponent(iso3)+"&operationType="+encodeURIComponent(kind),"GET");
+  if(live.ok){
+    const bucket=Array.isArray(live.data)?live.data.find(x=>x.country===iso3):live.data;
+    const providers=bucket?.providers||bucket?.correspondents||[];
+    return providers.filter(x=>{
+      const ops=x.operationTypes||[];
+      const op=ops.find(o=>o.operationType===kind);
+      return op && (op.status===undefined || op.status==="OPERATIONAL");
+    }).map(x=>{
+      const correspondent=x.provider||x.correspondent;
+      const brand=providerBrand(correspondent);
+      const op=(x.operationTypes||[]).find(o=>o.operationType===kind)||{};
+      return {...x,correspondent,currency:x.currency||COUNTRY_CURRENCY[country]||DEFAULT_CURRENCY,status:op.status||"OPERATIONAL",displayName:x.displayName||x.name||brand.name,logo:x.logo||x.logoUrl||brand.logo};
+    });
+  }
+  const rows=await pool.query(`SELECT provider,currency FROM public.payment_methods WHERE country_code=$1 AND active=true AND ((supports_topup=true AND $2='DEPOSIT') OR (supports_withdrawal=true AND $2='PAYOUT')) ORDER BY id`,[country,kind]);
+  return rows.rows.map(x=>{const brand=providerBrand(x.provider);return {provider:x.provider,correspondent:x.provider,currency:x.currency||COUNTRY_CURRENCY[country]||DEFAULT_CURRENCY,status:"UNKNOWN",displayName:brand.name,logo:brand.logo,operationTypes:[{operationType:kind,status:"UNKNOWN"}]};});
 }
-async function activePaymentMethod(country) {
+async function activePaymentMethod(country){
   const providers=await availableProviders(country,"DEPOSIT");
   const p=providers[0];
   return p?{country_code:country,provider:p.correspondent,method_code:p.correspondent,currency:p.currency}:null;
