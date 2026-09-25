@@ -273,13 +273,13 @@ async function withdrawalStatus(request,user,reference) {
   return json({ok:true,withdrawal:row,provider:p.data});
 }
 async function updateProfile(request,user) {
-  const b=await body(request),country=String(b.country_code||"").trim().toUpperCase(),phone=normalizePhone(b.phone,country);
+  const b=await body(request),country=String(b.country_code||user.country_code||"").trim().toUpperCase(),phone=normalizePhone(b.phone||user.phone,country),fullName=String(b.full_name??user.full_name??"").trim();
   if(!/^[A-Z]{2}$/.test(country))return bad("Pays invalide");
   const allowed=(await availableProviders(country,"DEPOSIT")).length>0 || (await availableProviders(country,"PAYOUT")).length>0;
   const c=await pool.connect();
   try{await c.query("BEGIN");const wallet=await c.query("SELECT id,balance,currency FROM public.wallets WHERE user_id=$1 FOR UPDATE",[user.id]);const targetCurrency=COUNTRY_CURRENCY[country]||DEFAULT_CURRENCY;
     if(wallet.rows[0]&&Number(wallet.rows[0].balance)!==0&&wallet.rows[0].currency!==targetCurrency){await c.query("ROLLBACK");return bad("Impossible de changer de devise avec un solde non nul",409,"CURRENCY_CHANGE_REQUIRES_ZERO_BALANCE");}
-    const r=await c.query(`UPDATE public.users SET country_code=$1,phone=COALESCE(NULLIF($2,''),phone),updated_at=now() WHERE id=$3 RETURNING id,email,full_name,phone,country_code,status,kyc_status`,[country,phone,user.id]);
+    const r=await c.query(`UPDATE public.users SET full_name=COALESCE(NULLIF($1,''),full_name),country_code=$2,phone=COALESCE(NULLIF($3,''),phone),updated_at=now() WHERE id=$4 RETURNING id,email,full_name,phone,country_code,status,kyc_status`,[fullName,country,phone,user.id]);
     await c.query(`UPDATE public.wallets SET currency=$1,updated_at=now() WHERE user_id=$2 AND balance=0 AND currency<>$1`,[targetCurrency,user.id]); if(!r.rows[0])return bad("Profil introuvable",404,"NOT_FOUND"); await c.query("COMMIT");return json({ok:true,user:r.rows[0],payment_method_available:allowed});
   }catch(e){await c.query("ROLLBACK");throw e}finally{c.release();}
 }
