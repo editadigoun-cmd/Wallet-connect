@@ -1,4 +1,5 @@
-export const COUNTRY_CODES=(typeof Intl.supportedValuesOf==="function"?Intl.supportedValuesOf("region"):["BJ","CG","CD","CI","CM","FR","BE","CA","US","GB","DE","IT","ES","PT","SN","TG","GH","NG","ZA","MA","DZ","TN","KE","RW","UG","TZ","IN","CN","AE","BR","CH","LU"]);
+const FALLBACK_COUNTRIES=["BJ","CG","CD","CI","CM","FR","BE","CA","US","GB","DE","IT","ES","PT","SN","TG","GH","NG","ZA","MA","DZ","TN","KE","RW","UG","TZ","IN","CN","AE","BR","CH","LU","GA","GQ","TD","CF","ML","BF","NE","GN","SL","LR","GM","GW","MR","CV","AO","MZ","ZM","ZW","NA","BW","MW","BI","ET","EG","SA","AE","QA","TR","IN","JP","KR","AU","NZ"];
+export const COUNTRY_CODES=FALLBACK_COUNTRIES;
 export const COUNTRY_NAMES=typeof Intl.DisplayNames==="function"?new Intl.DisplayNames(["fr"],{type:"region"}):null;
 export const flag=code=>String(code||"").replace(/./g,ch=>String.fromCodePoint(127397+ch.charCodeAt(0)));
 export function escapeHtml(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[c]));}
