@@ -1,5 +1,74 @@
-import {state} from "./state.js";window.__walletState=state;import {api} from "./api/client.js";import {fillCountries} from "./services/countries.js";import {toast} from "./ui/toast.js";import {show,initNavigation} from "./ui/navigation.js";import {render} from "./ui/render.js";import {initAuth} from "./features/auth.js";import {initWallet} from "./features/wallet.js";import {initTransfers} from "./features/transfers.js";import {initProfile} from "./features/profile.js";
-async function refresh(){const d=await api("/me");state.meData=d.user;state.txs=d.transactions||[];try{state.providers=await api("/providers?country="+encodeURIComponent(d.user.country_code||""))}catch{state.providers={depositProviders:[],payoutProviders:[],country:d.user.country_code||"",currency:d.user.currency||"XAF"}}render()}
-async function enterApp(){document.getElementById("footer").style.display="";show("home");await refresh()}
-async function checkSession(){try{const d=await api("/auth/get-session",{method:"GET"});if(d?.user){await enterApp()}else show("auth")}catch{show("auth")}}
-document.addEventListener("DOMContentLoaded",()=>{initNavigation();initAuth({api,fillCountries,toast,show,enterApp});initWallet({api,toast,refresh,show});initTransfers({api,toast,refresh,show});initProfile({api,toast,render,show});document.getElementById("toggleBalance").addEventListener("click",()=>{state.hidden=!state.hidden;render()});document.querySelectorAll(".tab").forEach(b=>b.addEventListener("click",()=>{document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));b.classList.add("active");state.activityFilter=b.dataset.filter||"all";render()}));show("auth");checkSession()});
+import {state} from "./state.js";
+import {api} from "./api/client.js";
+import {authApi} from "./api/auth.js";
+import {fillCountries} from "./services/countries.js";
+import {toast} from "./ui/toast.js";
+import {show,initNavigation} from "./ui/navigation.js";
+import {render} from "./ui/render.js";
+import {initAuth} from "./features/auth.js";
+import {initWallet} from "./features/wallet.js";
+import {initTransfers} from "./features/transfers.js";
+import {initProfile} from "./features/profile.js";
+
+window.__walletState=state;
+
+async function refresh(){
+  const data=await api("/me");
+  state.meData=data.user;
+  state.txs=data.transactions||[];
+  try{
+    state.providers=await api("/providers?country="+encodeURIComponent(data.user.country_code||""));
+  }catch{
+    state.providers={
+      depositProviders:[],
+      payoutProviders:[],
+      country:data.user.country_code||"",
+      currency:data.user.currency||"XAF"
+    };
+  }
+  render();
+}
+
+async function enterApp(){
+  document.getElementById("footer").style.display="";
+  show("home");
+  await refresh();
+}
+
+async function checkSession(){
+  try{
+    const data=await authApi.session();
+    if(data?.user)await enterApp();
+    else show("auth");
+  }catch{
+    show("auth");
+  }
+}
+
+function initUi(){
+  initNavigation();
+  initAuth({fillCountries,toast,enterApp});
+  initWallet({api,toast,refresh,show});
+  initTransfers({api,toast,refresh,show});
+  initProfile({api,toast,render,show});
+
+  document.getElementById("toggleBalance").addEventListener("click",()=>{
+    state.hidden=!state.hidden;
+    render();
+  });
+
+  document.querySelectorAll(".tab").forEach(button=>{
+    button.addEventListener("click",()=>{
+      document.querySelectorAll(".tab").forEach(item=>item.classList.remove("active"));
+      button.classList.add("active");
+      state.activityFilter=button.dataset.filter||"all";
+      render();
+    });
+  });
+}
+
+document.addEventListener("DOMContentLoaded",()=>{
+  initUi();
+  show("auth");
+  checkSession();
+});
