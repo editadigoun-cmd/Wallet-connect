@@ -1,4 +1,58 @@
 import {state} from "../state.js";
-export function initAuth({api,fillCountries,toast,show,enterApp}){document.getElementById("authSwitch").addEventListener("click",toggle);window.toggleAuthMode=toggle;document.getElementById("authForm").addEventListener("submit",submit);function toggle(){state.authMode=state.authMode==="login"?"signup":"login";const signup=state.authMode==="signup";document.getElementById("authTitle").textContent=signup?"Créer un compte":"Connexion";document.getElementById("authSubmit").textContent=signup?"Créer mon compte":"Se connecter";document.getElementById("nameField").classList.toggle("hide",!signup);document.getElementById("countryField").classList.toggle("hide",!signup);document.getElementById("authCountry").required=signup;document.getElementById("authSwitchText").textContent=signup?"Déjà un compte ?":"Pas encore de compte ?";document.getElementById("authSwitch").textContent=signup?"Se connecter":"Créer un compte";document.getElementById("authPassword").autocomplete=signup?"new-password":"current-password";if(signup)fillCountries("authCountry")}
-async function submit(e){e.preventDefault();const err=document.getElementById("authError");err.style.display="none";const btn=document.getElementById("authSubmit");btn.disabled=true;try{const payload={email:document.getElementById("authEmail").value.trim(),password:document.getElementById("authPassword").value};if(state.authMode==="signup"){payload.name=document.getElementById("authName").value.trim();payload.country_code=document.getElementById("authCountry").value;if(!payload.country_code)throw new Error("Sélectionne ton pays")}const path=state.authMode==="login"?"/auth/sign-in/email":"/auth/sign-up/email";const d=await api(path,{method:"POST",body:JSON.stringify(payload)});if(state.authMode==="signup")await api("/profile",{method:"POST",body:JSON.stringify({country_code:payload.country_code})});toast(state.authMode==="login"?"Connexion réussie":"Compte créé");await enterApp(d)}catch(ex){err.textContent=ex.message;err.style.display="block"}finally{btn.disabled=false}}
+import {authApi} from "../api/auth.js";
+
+export function initAuth({fillCountries,toast,enterApp}){
+  const form=document.getElementById("authForm");
+  const switchButton=document.getElementById("authSwitch");
+  if(!form||!switchButton)return;
+
+  const el=id=>document.getElementById(id);
+
+  function toggle(){
+    const signup=state.authMode!=="signup";
+    state.authMode=signup?"signup":"login";
+    el("authTitle").textContent=signup?"Créer un compte":"Connexion";
+    el("authSubmit").textContent=signup?"Créer mon compte":"Se connecter";
+    el("nameField").classList.toggle("hide",!signup);
+    el("countryField").classList.toggle("hide",!signup);
+    el("authCountry").required=signup;
+    el("authSwitchText").textContent=signup?"Déjà un compte ?":"Pas encore de compte ?";
+    switchButton.textContent=signup?"Se connecter":"Créer un compte";
+    el("authPassword").autocomplete=signup?"new-password":"current-password";
+    if(signup)fillCountries("authCountry");
+  }
+
+  switchButton.addEventListener("click",event=>{
+    event.preventDefault();
+    event.stopPropagation();
+    toggle();
+  });
+
+  form.addEventListener("submit",async event=>{
+    event.preventDefault();
+    const error=el("authError");
+    const button=el("authSubmit");
+    error.style.display="none";
+    button.disabled=true;
+    try{
+      const email=el("authEmail").value.trim();
+      const password=el("authPassword").value;
+      if(state.authMode==="signup"){
+        const country_code=el("authCountry").value;
+        if(!country_code)throw new Error("Sélectionne ton pays");
+        await authApi.signUp({email,password,name:el("authName").value.trim(),country_code});
+        await authApi.updateProfile({country_code});
+        toast("Compte créé");
+      }else{
+        await authApi.signIn(email,password);
+        toast("Connexion réussie");
+      }
+      await enterApp();
+    }catch(errorValue){
+      error.textContent=errorValue?.message||"Une erreur est survenue.";
+      error.style.display="block";
+    }finally{
+      button.disabled=false;
+    }
+  });
 }
