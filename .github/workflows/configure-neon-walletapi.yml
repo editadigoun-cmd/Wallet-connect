@@ -24,6 +24,9 @@ jobs:
       - name: Check backend syntax
         run: node --check backend/walletapi/index.js
 
+      - name: Install backend dependencies
+        run: npm install --omit=dev --prefix backend/walletapi
+
       - name: Deploy Wallet Connect API to Neon
         shell: bash
         run: |
