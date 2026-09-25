@@ -125,6 +125,7 @@ async function createTopup(request, user) {
   const phone = normalizePhone(b.phone);
   if (!amount || !phone) return bad("Montant et numéro MTN requis");
   const key = idempotency(request, "topup-" + crypto.randomUUID());
+  const provider = b.provider || DEFAULT_PROVIDER;
   const client = await pool.connect();
   let row;
   try {
@@ -145,7 +146,6 @@ async function createTopup(request, user) {
     await client.query("ROLLBACK"); client.release(); throw e;
   }
   client.release();
-  const provider = b.provider || DEFAULT_PROVIDER;
   const p = await pawapay("/deposits", "POST", {
     depositId: row.reference,
     amount: String(amount),
