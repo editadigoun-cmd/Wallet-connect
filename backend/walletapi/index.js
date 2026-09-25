@@ -36,7 +36,14 @@ function amountInt(v) {
 }
 function normalizePhone(v, country="") {
   let n = String(v || "").replace(/\D/g, "");
-  const cc = COUNTRY_DIAL[String(country || "").toUpperCase()];
+  const c = String(country || "").toUpperCase();
+  if (c === "BJ") {
+    if (n.startsWith("229")) n = n.slice(3);
+    if (n.length === 9) n = "0" + n;
+    if (n.length === 10 && !n.startsWith("0")) n = "0" + n;
+    return n;
+  }
+  const cc = COUNTRY_DIAL[c];
   if (cc && n.startsWith("0")) n = cc + n.slice(1);
   else if (cc && !n.startsWith(cc)) n = cc + n;
   return n;
@@ -129,9 +136,11 @@ async function createTopup(request,user) {
     customerMessage:"Recharge Wallet",
     metadata:[{fieldName:"walletConnectReference",fieldValue:row.reference}]
   });
-  const status=p.ok?"pending":"failed";
+  const providerStatus=String(p.data?.status||"").toUpperCase();
+  const rejected=!p.ok || ["REJECTED","FAILED","CANCELLED"].includes(providerStatus);
+  const status=rejected?"failed":"pending";
   await pool.query("UPDATE public.topups SET status=$1,metadata=metadata || $2::jsonb WHERE id=$3",[status,JSON.stringify({pawapay_response:p.data}),row.id]);
-  if(!p.ok)return json({ok:false,error:"PawaPay a refusé la recharge",details:p.data},502);
+  if(rejected)return json({ok:false,error:"La recharge n'a pas été acceptée par MTN. Vérifie le numéro MTN et réessaie.",code:"TOPUP_REJECTED"},502);
   return json({ok:true,topup:{...row,status},provider_response:p.data},202);
 }
 async function topupStatus(request,user,reference) {
