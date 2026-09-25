@@ -135,8 +135,13 @@ async function availableProviders(country,kind){
   const iso3=COUNTRY_ISO3[country]||country;
   const active=await pawapay("/active-conf","GET");
   if(!active.ok){ console.error("PAWAPAY_ACTIVE_CONF_ERROR",active.status,active.data); return []; }
-  const countries=Array.isArray(active.data?.countries)?active.data.countries:[];
-  const cc=countries.find(x=>String(x.country||"").toUpperCase()===String(iso3).toUpperCase());
+
+  // active-conf is authoritative for what THIS merchant account is configured to use.
+  // PawaPay V2 may expose country/availability data in slightly different envelopes,
+  // so normalize both the documented array shape and a possible {countries:[...]} shape.
+  const countries=Array.isArray(active.data?.countries)?active.data.countries:
+    (Array.isArray(active.data)?active.data:[]);
+  const cc=countries.find(x=>String(x.country||x.countryCode||"").toUpperCase()===String(iso3).toUpperCase());
   const correspondents=Array.isArray(cc?.correspondents)?cc.correspondents:[];
   const configured=correspondents.map(x=>{
     const correspondent=x.correspondent||x.provider;
@@ -147,18 +152,32 @@ async function availableProviders(country,kind){
     return {...x,correspondent,provider:correspondent,currency:x.currency||COUNTRY_CURRENCY[country]||DEFAULT_CURRENCY,displayName:x.displayName||x.name||brand.name,logo:x.logo||x.logoUrl||brand.logo,operationTypes:ops,activeOperation:op};
   }).filter(Boolean);
   if(!configured.length)return [];
+
+  // Availability is a live health signal, not the source of merchant permissions.
+  // If the endpoint is temporarily unavailable or its response envelope changes,
+  // keep the merchant-configured providers instead of falsely reporting zero methods.
   const live=await pawapay("/availability","GET");
-  if(!live.ok){ console.error("PAWAPAY_AVAILABILITY_ERROR",live.status,live.data); return []; }
-  const availabilityCountries=Array.isArray(live.data)?live.data:[];
-  const ac=availabilityCountries.find(x=>String(x.country||"").toUpperCase()===String(iso3).toUpperCase());
-  const available=Array.isArray(ac?.correspondents)?ac.correspondents:[];
+  if(!live.ok){
+    console.error("PAWAPAY_AVAILABILITY_ERROR",live.status,live.data);
+    return configured.map(x=>({...x,status:"CONFIGURED"}));
+  }
+  const availabilityCountries=Array.isArray(live.data)?live.data:
+    (Array.isArray(live.data?.countries)?live.data.countries:[]);
+  const ac=availabilityCountries.find(x=>String(x.country||x.countryCode||"").toUpperCase()===String(iso3).toUpperCase());
+  if(!ac||!Array.isArray(ac.correspondents)){
+    console.warn("PAWAPAY_AVAILABILITY_SHAPE_UNRECOGNIZED",{country:iso3,kind});
+    return configured.map(x=>({...x,status:"CONFIGURED"}));
+  }
+  const available=ac.correspondents;
   return configured.map(cfg=>{
     const liveProvider=available.find(x=>(x.correspondent||x.provider)===cfg.correspondent);
     const liveOps=Array.isArray(liveProvider?.operationTypes)?liveProvider.operationTypes:[];
     const liveOp=liveOps.find(o=>o&&o.operationType===kind);
-    const status=String(liveOp?.status||"CLOSED").toUpperCase();
+    // A provider explicitly reported as non-operational is excluded. If no live
+    // status is returned for a configured provider, retain it as CONFIGURED.
+    const status=String(liveOp?.status||"CONFIGURED").toUpperCase();
     return {...cfg,status,operationTypes:liveOps.length?liveOps:cfg.operationTypes};
-  }).filter(x=>x.status==="OPERATIONAL");
+  }).filter(x=>x.status==="OPERATIONAL"||x.status==="CONFIGURED");
 }
 async function activePaymentMethod(country){
   const providers=await availableProviders(country,"DEPOSIT");
