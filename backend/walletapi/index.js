@@ -6,7 +6,7 @@ const PAWAPAY_BASE = "https://api.pawapay.io/v2";
 const DEFAULT_PROVIDER = "MTN_MOMO_COG";
 const DEFAULT_COUNTRY = "CG";
 const DEFAULT_CURRENCY = "XAF";
-const COUNTRY_CURRENCY = { CG: "XAF", BJ: "XOF" };
+const COUNTRY_CURRENCY = { BJ:"XOF",BF:"XOF",CI:"XOF",SN:"XOF",TG:"XOF",ML:"XOF",GW:"XOF",CM:"XAF",CG:"XAF",GA:"XAF",GQ:"XAF",TD:"XAF",CF:"XAF",GH:"GHS",NG:"NGN",SL:"SLE",CD:"CDF",LS:"LSL",MW:"MWK",MZ:"MZN",ZM:"ZMW",ET:"ETB",KE:"KES",RW:"RWF",TZ:"TZS",UG:"UGX",ZA:"ZAR",LR:"LRD",SS:"SSP",GN:"GNF",GM:"GMD",MR:"MRU",CV:"CVE",AO:"AOA",ZW:"USD",NA:"NAD",BW:"BWP",BI:"BIF",EG:"EGP",SA:"SAR",QA:"QAR",TR:"TRY",MA:"MAD",DZ:"DZD",TN:"TND",IN:"INR",CN:"CNY",AE:"AED",BR:"BRL",CH:"CHF",LU:"EUR",FR:"EUR",BE:"EUR",CA:"CAD",US:"USD",GB:"GBP",DE:"EUR",IT:"EUR",ES:"EUR",PT:"EUR",JP:"JPY",KR:"KRW",AU:"AUD",NZ:"NZD" };
 const COUNTRY_DIAL = { BJ:"229", BF:"226", CM:"237", GH:"233", CI:"225", NG:"234", SN:"221", SL:"232", TG:"228", CG:"242", CD:"243", GA:"241", LS:"266", MW:"265", MZ:"258", ZM:"260", ET:"251", KE:"254", RW:"250", TZ:"255", UG:"256", ML:"223", GN:"224", GW:"245", LR:"231", SS:"211", ZA:"27", FR:"33", BE:"32", CA:"1", US:"1", GB:"44", DE:"49", IT:"39", ES:"34", PT:"351" };
 const COUNTRY_ISO3 = { BJ:"BEN", CG:"COG", CD:"COD", CI:"CIV", CM:"CMR", SN:"SEN", TG:"TGO", GH:"GHA", NG:"NGA", ZA:"ZAF", FR:"FRA", BE:"BEL", CA:"CAN", US:"USA", GB:"GBR", DE:"DEU", IT:"ITA", ES:"ESP", PT:"PRT" };
 const ISO3_TO_ISO2 = Object.fromEntries(Object.entries(COUNTRY_ISO3).map(([k,v])=>[v,k]));
