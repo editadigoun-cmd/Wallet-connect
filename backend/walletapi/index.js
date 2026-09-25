@@ -39,7 +39,7 @@ function idempotency(request, fallback) {
 }
 function decodeAuthCookie(request) {
   const raw = request.headers.get("cookie") || "";
-  const m = raw.match(/(?:^|;\\s*)wallet_auth=([^;]+)/);
+  const m = raw.match(/(?:^|;\s*)wallet_auth=([^;]+)/);
   if (!m) return "";
   try { return Buffer.from(decodeURIComponent(m[1]), "base64url").toString("utf8"); } catch { return ""; }
 }
