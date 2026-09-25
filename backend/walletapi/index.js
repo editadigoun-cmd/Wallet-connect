@@ -99,7 +99,7 @@ async function requireUser(request) {
       `INSERT INTO public.wallets (user_id,currency,balance,status)
        VALUES ($1,COALESCE($2,'XAF'),0,'active')
        ON CONFLICT (user_id) DO NOTHING`,
-      [user.id]
+      [user.id, COUNTRY_CURRENCY[user.country_code] || DEFAULT_CURRENCY]
     );
     await client.query("COMMIT");
     return user;
@@ -213,15 +213,15 @@ async function transfer(request,user) {
     await c.query("BEGIN");
     const ex=await c.query("SELECT * FROM public.transfers WHERE idempotency_key=$1",[key]);
     if(ex.rows[0]){await c.query("COMMIT");return json({ok:true,transfer:ex.rows[0]});}
-    const s=await c.query("SELECT u.id,w.id wallet_id,w.balance FROM public.users u JOIN public.wallets w ON w.user_id=u.id WHERE u.id=$1 FOR UPDATE",[user.id]);
-    const r=await c.query("SELECT u.id,w.id wallet_id,u.email,u.full_name FROM public.users u JOIN public.wallets w ON w.user_id=u.id WHERE (lower(u.email)=lower($1) OR u.phone=$1) AND u.status='active' LIMIT 1",[recipient]);
+    const s=await c.query("SELECT u.id,w.id wallet_id,w.balance,w.currency FROM public.users u JOIN public.wallets w ON w.user_id=u.id WHERE u.id=$1 FOR UPDATE",[user.id]);
+    const r=await c.query("SELECT u.id,w.id wallet_id,u.email,u.full_name,w.currency FROM public.users u JOIN public.wallets w ON w.user_id=u.id WHERE (lower(u.email)=lower($1) OR u.phone=$1) AND u.status='active' LIMIT 1",[recipient]);
     if(!s.rows[0]||!r.rows[0])throw Object.assign(new Error("Destinataire introuvable"),{status:404});
     if(r.rows[0].id===user.id)throw new Error("Impossible de transférer vers soi-même");
     const fee=Math.round(amount*0.01),total=amount+fee,before=Number(s.rows[0].balance);
     if(before<total)throw Object.assign(new Error("Solde insuffisant"),{status:409});
     const ref="TRF-"+crypto.randomUUID();
     const ins=await c.query(`INSERT INTO public.transfers(reference,sender_wallet_id,receiver_wallet_id,amount,fee_amount,currency,status,note,idempotency_key)
-      VALUES($1,$2,$3,$4,$5,'XAF','successful',$6,$7) RETURNING *`,[ref,s.rows[0].wallet_id,r.rows[0].wallet_id,amount,fee,b.note||null,key]);
+      VALUES($1,$2,$3,$4,$5,$6,'successful',$7,$8) RETURNING *`,[ref,s.rows[0].wallet_id,r.rows[0].wallet_id,amount,fee,s.rows[0].currency||DEFAULT_CURRENCY,b.note||null,key]);
     const after=before-total;
     await c.query("UPDATE public.wallets SET balance=$1,updated_at=now() WHERE id=$2",[after,s.rows[0].wallet_id]);
     const rw=await c.query("SELECT balance FROM public.wallets WHERE id=$1 FOR UPDATE",[r.rows[0].wallet_id]);
@@ -229,10 +229,10 @@ async function transfer(request,user) {
     await c.query("UPDATE public.wallets SET balance=$1,updated_at=now() WHERE id=$2",[rafter,r.rows[0].wallet_id]);
     await c.query(`INSERT INTO public.transactions(reference,wallet_id,type,direction,amount,currency,balance_before,balance_after,status,description,metadata,completed_at)
       VALUES($1,$2,'transfer_out','debit',$3,'XAF',$4,$5,'successful','Transfert envoyé',$6,now())`,
-      ["TX-"+crypto.randomUUID(),s.rows[0].wallet_id,total,before,after,JSON.stringify({transfer_id:ins.rows[0].id,fee})]);
+      ["TX-"+crypto.randomUUID(),s.rows[0].wallet_id,total,s.rows[0].currency||DEFAULT_CURRENCY,before,after,JSON.stringify({transfer_id:ins.rows[0].id,fee})]);
     await c.query(`INSERT INTO public.transactions(reference,wallet_id,type,direction,amount,currency,balance_before,balance_after,status,description,metadata,completed_at)
       VALUES($1,$2,'transfer_in','credit',$3,'XAF',$4,$5,'successful','Transfert reçu',$6,now())`,
-      ["TX-"+crypto.randomUUID(),r.rows[0].wallet_id,amount,rbefore,rafter,JSON.stringify({transfer_id:ins.rows[0].id})]);
+      ["TX-"+crypto.randomUUID(),r.rows[0].wallet_id,amount,rw.rows[0].currency||s.rows[0].currency||DEFAULT_CURRENCY,rbefore,rafter,JSON.stringify({transfer_id:ins.rows[0].id})]);
     await c.query("COMMIT");
     return json({ok:true,transfer:{...ins.rows[0],recipient:{email:r.rows[0].email,name:r.rows[0].full_name},fee_amount:fee,total_debited:total}},201);
   }catch(e){await c.query("ROLLBACK");throw e}finally{c.release();}
@@ -257,7 +257,7 @@ async function withdraw(request,user) {
     if(before<amount)throw Object.assign(new Error("Solde insuffisant"),{status:409});
     const ref="WDR-"+crypto.randomUUID();
     const ins=await c.query(`INSERT INTO public.withdrawals(reference,wallet_id,amount,fee_amount,currency,provider,status,destination_type,destination_account,metadata,idempotency_key)
-      VALUES($1,$2,$3,0,$4,$5,'processing','mobile_money',$6,$7) RETURNING *`,
+      VALUES($1,$2,$3,0,$4,$5,'processing','mobile_money',$6,$7,$8) RETURNING *`,
       [ref,w.rows[0].id,amount,currency,provider,phone,JSON.stringify({provider,country}),key]);
     await c.query("UPDATE public.wallets SET balance=balance-$1,updated_at=now() WHERE id=$2",[amount,w.rows[0].id]);
     const after=before-amount;
