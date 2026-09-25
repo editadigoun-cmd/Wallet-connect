@@ -1,4 +1,4 @@
-import {money} from "../services/format.js";import {state} from "../state.js";import {transferApi} from "../api/transfers.js";
+import {money} from "../services/format.js";import {state} from "../state.js";import {transferApi} from "../api/transfers.js";import {show} from "../ui/navigation.js";
 export function initTransfers({toast,refresh}){
   const recipient=document.getElementById("recipient"),amount=document.getElementById("sendAmount"),form=document.getElementById("sendForm");
   function calcFee(a){
