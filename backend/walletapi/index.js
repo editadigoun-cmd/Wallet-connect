@@ -164,7 +164,7 @@ async function createTopup(request, user) {
     metadata: [{ fieldName: "walletConnectReference", fieldValue: row.reference }]
   });
   const status = p.ok ? "pending" : "failed";
-  await pool.query("UPDATE public.topups SET provider_reference=$1,status=$2,metadata=metadata || $3::jsonb,updated_at=now() WHERE id=$4",
+  await pool.query("UPDATE public.topups SET provider_reference=$1,status=$2,metadata=metadata || $3::jsonb WHERE id=$4",
     [row.reference, status, JSON.stringify({ pawapay_response: p.data }), row.id]);
   if (!p.ok) return json({ ok:false, error:"PawaPay a refusé la recharge", details:p.data }, 502);
   return json({ ok:true, topup:{...row,status,provider_reference:row.reference}, provider_response:p.data }, 202);
@@ -189,7 +189,7 @@ async function topupStatus(request, user, reference) {
         const w=await c.query("SELECT * FROM public.wallets WHERE id=$1 FOR UPDATE",[row.wallet_id]);
         const before=Number(w.rows[0].balance), after=before+Number(row.amount);
         await c.query("UPDATE public.wallets SET balance=$1,updated_at=now() WHERE id=$2",[after,row.wallet_id]);
-        await c.query("UPDATE public.topups SET status='successful',completed_at=now(),updated_at=now(),metadata=metadata || $1::jsonb WHERE id=$2",[JSON.stringify({pawapay_status:providerStatus}),row.id]);
+        await c.query("UPDATE public.topups SET status='successful',completed_at=now(),metadata=metadata || $1::jsonb WHERE id=$2",[JSON.stringify({pawapay_status:providerStatus}),row.id]);
         await c.query(`INSERT INTO public.transactions(reference,wallet_id,type,direction,amount,currency,balance_before,balance_after,status,description,metadata,completed_at)
           VALUES ($1,$2,'topup','credit',$3,$4,$5,'successful','Recharge MTN',$6,now())`,
           ["TX-"+crypto.randomUUID(),row.wallet_id,row.amount,row.currency,before,after,JSON.stringify({topup_id:row.id,provider_reference:row.provider_reference})]);
@@ -199,7 +199,7 @@ async function topupStatus(request, user, reference) {
     return json({ok:true,topup:{...row,status:"successful"}});
   }
   if (["FAILED","REJECTED","CANCELLED"].includes(providerStatus)) {
-    await pool.query("UPDATE public.topups SET status='failed',updated_at=now(),metadata=metadata || $1::jsonb WHERE id=$2",[JSON.stringify({pawapay_status:providerStatus,pawapay:p.data}),row.id]);
+    await pool.query("UPDATE public.topups SET status='failed',metadata=metadata || $1::jsonb WHERE id=$2",[JSON.stringify({pawapay_status:providerStatus,pawapay:p.data}),row.id]);
     return json({ok:true,topup:{...row,status:"failed"}});
   }
   return json({ok:true,topup:row,provider:p.data});
@@ -274,7 +274,7 @@ async function withdraw(request,user) {
   });
   if(!p.ok){
     const c2=await pool.connect();
-    try{await c2.query("BEGIN");await c2.query("UPDATE public.wallets SET balance=balance+$1,updated_at=now() WHERE id=$2",[amount,row.wallet_id]);await c2.query("UPDATE public.withdrawals SET status='failed',failure_reason=$1,updated_at=now(),metadata=metadata || $2::jsonb WHERE id=$3",["PawaPay rejection",JSON.stringify({pawapay:p.data}),row.id]);await c2.query("UPDATE public.transactions SET status='failed',metadata=metadata || $1::jsonb WHERE metadata->>'withdrawal_id'=$2",[JSON.stringify({pawapay:p.data}),String(row.id)]);await c2.query("COMMIT")}catch(e){await c2.query("ROLLBACK")}finally{c2.release();}
+    try{await c2.query("BEGIN");await c2.query("UPDATE public.wallets SET balance=balance+$1,updated_at=now() WHERE id=$2",[amount,row.wallet_id]);await c2.query("UPDATE public.withdrawals SET status='failed',failure_reason=$1,metadata=metadata || $2::jsonb WHERE id=$3",["PawaPay rejection",JSON.stringify({pawapay:p.data}),row.id]);await c2.query("UPDATE public.transactions SET status='failed',metadata=metadata || $1::jsonb WHERE metadata->>'withdrawal_id'=$2",[JSON.stringify({pawapay:p.data}),String(row.id)]);await c2.query("COMMIT")}catch(e){await c2.query("ROLLBACK")}finally{c2.release();}
     return json({ok:false,error:"PawaPay a refusé le retrait",details:p.data},502);
   }
   await pool.query("UPDATE public.withdrawals SET provider_reference=$1,status='processing',metadata=metadata || $2::jsonb,updated_at=now() WHERE id=$3",[row.reference,JSON.stringify({pawapay:p.data}),row.id]);
