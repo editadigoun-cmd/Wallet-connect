@@ -18,19 +18,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Check backend syntax
-        shell: bash
-        run: node --check backend/walletapi/index.js
+      - name: Install Neon CLI
+        run: npm install -g neon@latest
 
-      - name: Build Neon Function package
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd backend/walletapi
-          npm install --omit=dev
-          zip -qr ../../walletapi.zip .
-          cd ../..
-          test -s walletapi.zip
+      - name: Check backend syntax
+        run: node --check backend/walletapi/index.js
 
       - name: Deploy Wallet Connect API to Neon
         shell: bash
@@ -38,18 +30,15 @@ jobs:
           set -euo pipefail
           test -n "$NEON_API_KEY"
           test -n "$PAWAPAY_API_TOKEN"
-          ENV_JSON=$(jq -cn --arg token "$PAWAPAY_API_TOKEN" --arg provider "MTN_MOMO_COG" '{PAWAPAY_API_TOKEN:$token,PAWAPAY_CORRESPONDENT:$provider}')
-          curl --fail-with-body -sS -X POST \
-            "https://console.neon.tech/api/v2/projects/green-violet-58373553/branches/br-fragrant-moon-b4qxibei/functions/walletapi/deployments" \
-            -H "Authorization: Bearer $NEON_API_KEY" \
-            -F "zip=@walletapi.zip;type=application/zip" \
-            -F "runtime=nodejs24" \
-            -F "environment=$ENV_JSON"
+          neon functions deploy walletapi \
+            --project-id green-violet-58373553 \
+            --branch br-fragrant-moon-b4qxibei \
+            --src backend/walletapi/index.js \
+            --env "PAWAPAY_API_TOKEN=$PAWAPAY_API_TOKEN" \
+            --env "PAWAPAY_CORRESPONDENT=MTN_MOMO_COG"
 
       - name: Verify deployed function health
         shell: bash
         run: |
           set -euo pipefail
-          curl --fail-with-body -sS --retry 5 --retry-delay 2 "https://br-fragrant-moon-b4qxibei-walletapi.compute.c-6.us-east-2.aws.neon.tech/health"
-
-# deployment verification
+          curl --fail-with-body -sS --retry 8 --retry-delay 2 "https://br-fragrant-moon-b4qxibei-walletapi.compute.c-6.us-east-2.aws.neon.tech/health"
