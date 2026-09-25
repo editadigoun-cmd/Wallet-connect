@@ -1,28 +1,40 @@
-name: Configure Wallet Connect Neon Function
+name: Deploy Wallet Connect backend
 
 on:
   workflow_dispatch:
   push:
     branches: [main]
     paths:
+      - 'backend/walletapi/**'
       - '.github/workflows/configure-neon-walletapi.yml'
 
 jobs:
-  configure-neon-function:
+  deploy-neon-function:
     runs-on: ubuntu-latest
     env:
       NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
       PAWAPAY_API_TOKEN: ${{ secrets.PAWAPAY_API_TOKEN }}
     steps:
-      - name: Inject PawaPay production secret into existing Neon Function
+      - name: Build Neon Function package
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd backend/walletapi
+          npm install --omit=dev
+          zip -qr ../../../walletapi.zip .
+          cd ../../..
+          test -s walletapi.zip
+
+      - name: Deploy Wallet Connect API to Neon
         shell: bash
         run: |
           set -euo pipefail
           test -n "$NEON_API_KEY"
           test -n "$PAWAPAY_API_TOKEN"
-          ENV_JSON=$(jq -cn --arg token "$PAWAPAY_API_TOKEN" '{PAWAPAY_API_TOKEN:$token}')
-          BODY=$(jq -cn --arg env "$ENV_JSON" '{environment:$env}')
+          ENV_JSON=$(jq -cn --arg token "$PAWAPAY_API_TOKEN" --arg provider "MTN_MOMO_COG" '{PAWAPAY_API_TOKEN:$token,PAWAPAY_CORRESPONDENT:$provider}')
           curl --fail-with-body -sS -X POST \
             "https://console.neon.tech/api/v2/projects/green-violet-58373553/branches/br-fragrant-moon-b4qxibei/functions/walletapi/deployments" \
             -H "Authorization: Bearer $NEON_API_KEY" \
+            -F "zip=@walletapi.zip;type=application/zip" \
+            -F "runtime=nodejs24" \
             -F "environment=$ENV_JSON"
