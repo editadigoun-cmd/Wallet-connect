@@ -1,4 +1,4 @@
-const FALLBACK_COUNTRIES=["BJ","CG","CD","CI","CM","FR","BE","CA","US","GB","DE","IT","ES","PT","SN","TG","GH","NG","ZA","MA","DZ","TN","KE","RW","UG","TZ","IN","CN","AE","BR","CH","LU","GA","GQ","TD","CF","ML","BF","NE","GN","SL","LR","GM","GW","MR","CV","AO","MZ","ZM","ZW","NA","BW","MW","BI","ET","EG","SA","AE","QA","TR","IN","JP","KR","AU","NZ"];
+const FALLBACK_COUNTRIES=["BJ","BF","CM","GH","CI","NG","SN","SL","TG","CG","CD","GA","LS","MW","MZ","ZM","ET","KE","RW","TZ","UG","ML","GN","GW","LR","SS","ZA","FR","BE","CA","US","GB","DE","IT","ES","PT","MA","DZ","TN","IN","CN","AE","BR","CH","LU","GQ","TD","CF","NE","GM","MR","CV","AO","ZW","NA","BW","BI","EG","SA","QA","TR","JP","KR","AU","NZ"];
 export const COUNTRY_CODES=FALLBACK_COUNTRIES;
 export const COUNTRY_NAMES=typeof Intl.DisplayNames==="function"?new Intl.DisplayNames(["fr"],{type:"region"}):null;
 export const flag=code=>String(code||"").replace(/./g,ch=>String.fromCodePoint(127397+ch.charCodeAt(0)));
