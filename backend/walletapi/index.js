@@ -206,7 +206,7 @@ async function createTopup(request,user) {
   const rejected=!p.ok || ["REJECTED","FAILED","CANCELLED"].includes(providerStatus);
   const status=rejected?"failed":"pending";
   await pool.query("UPDATE public.topups SET status=$1,metadata=metadata || $2::jsonb WHERE id=$3",[status,JSON.stringify({pawapay_response:p.data}),row.id]);
-  if(rejected){const reason=p.data?.rejectionReason||p.data?.failureReason||{};return json({ok:false,error:reason.rejectionMessage||reason.failureMessage||"La recharge n'a pas été acceptée par le moyen de paiement sélectionné.",code:"TOPUP_REJECTED",details:reason},502);}
+  if(rejected){const reason=p.data?.data?.rejectionReason||p.data?.rejectionReason||p.data?.data?.failureReason||p.data?.failureReason||{};return json({ok:false,error:reason.rejectionMessage||reason.failureMessage||"La recharge n'a pas été acceptée par le moyen de paiement sélectionné.",code:"TOPUP_REJECTED",details:reason},502);}
   return json({ok:true,topup:{...row,status},provider_response:p.data},202);
 }
 async function topupStatus(request,user,reference) {
