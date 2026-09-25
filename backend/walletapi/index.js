@@ -241,7 +241,12 @@ async function withdraw(request,user) {
   const providers=await availableProviders(country,"PAYOUT");
   const selected=providers.find(x=>x.correspondent===provider);
   if(!selected)return bad("Ce moyen de paiement n'est pas disponible pour les retraits dans ton pays");
-  const currency=selected.currency||method.currency||COUNTRY_CURRENCY[country]||DEFAULT_CURRENCY,key=idempotency(request,"withdraw-"+crypto.randomUUID()),c=await pool.connect(); let row;
+  const currency=selected.currency||method.currency||COUNTRY_CURRENCY[country]||DEFAULT_CURRENCY;
+  const payoutConfig=operationType(selected,"PAYOUT")||{};
+  const minPayout=Number(payoutConfig.minTransactionLimit||0),maxPayout=Number(payoutConfig.maxTransactionLimit||0);
+  if(minPayout&&amount<minPayout)return bad("Le montant minimum pour ce moyen est "+minPayout+" "+currency);
+  if(maxPayout&&amount>maxPayout)return bad("Le montant maximum pour ce moyen est "+maxPayout+" "+currency);
+  const key=idempotency(request,"withdraw-"+crypto.randomUUID()),c=await pool.connect(); let row;
   try{
     await c.query("BEGIN"); const ex=await c.query("SELECT w.* FROM public.withdrawals w JOIN public.wallets wa ON wa.id=w.wallet_id WHERE w.idempotency_key=$1",[key]);
     if(ex.rows[0]){await c.query("COMMIT");return json({ok:true,withdrawal:ex.rows[0]});}
