@@ -257,12 +257,13 @@ async function transfer(request,user) {
 async function withdraw(request,user) {
   const b=await body(request),amount=amountInt(b.amount),country=String(user.country_code||DEFAULT_COUNTRY).toUpperCase(),phone=normalizePhone(b.phone,country),requestedProvider=String(b.provider||"").trim();
   if(!amount||!phone)return bad("Montant et numéro MTN requis");
-  const method=await activePaymentMethod(country); if(!method)return bad("Aucun moyen de retrait n'est encore disponible dans ton pays");
-  const provider=requestedProvider||method.provider;
   const providers=await availableProviders(country,"PAYOUT");
+  if(!providers.length)return bad("Aucun moyen de retrait opérationnel dans ton pays");
+  const provider=requestedProvider||providers[0].correspondent;
+
   const selected=providers.find(x=>x.correspondent===provider);
   if(!selected)return bad("Ce moyen de paiement n'est pas disponible pour les retraits dans ton pays");
-  const currency=selected.currency||method.currency||COUNTRY_CURRENCY[country]||DEFAULT_CURRENCY;
+  const currency=selected.currency||COUNTRY_CURRENCY[country]||DEFAULT_CURRENCY;
   const payoutConfig=operationType(selected,"PAYOUT")||{};
   const minPayout=Number(payoutConfig.minTransactionLimit||0),maxPayout=Number(payoutConfig.maxTransactionLimit||0);
   if(minPayout&&amount<minPayout)return bad("Le montant minimum pour ce moyen est "+minPayout+" "+currency);
