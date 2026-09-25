@@ -33,7 +33,7 @@ export function render(){
   if(feeLabel) feeLabel.textContent=feeType==="percentage"?feeValue+"%":money(feeValue,currency);
   document.querySelector(".greeting h1").textContent="Bonjour "+name.split(" ")[0]+" 👋";
   document.getElementById("profileName").textContent=name;
-  document.getElementById("profileEmail").textContent=state.meData?.email||"Compte personnel";
+  document.getElementById("profileEmail").textContent=state.meData?.email||"Compte personnel";const walletCode=document.getElementById("profileWalletCode");if(walletCode)walletCode.textContent=state.meData?.wallet_code||"—";
   document.getElementById("profileAvatar").textContent=name.charAt(0).toUpperCase();const headerAvatar=document.getElementById("headerAvatar");if(headerAvatar)headerAvatar.textContent=name.charAt(0).toUpperCase();
   document.getElementById("profileFullName").value=state.meData?.full_name||"";
   document.getElementById("profilePhone").value=state.meData?.phone||"";
