@@ -320,7 +320,7 @@ async function handler(request) {
   if(request.method==="OPTIONS")return new Response(null,{status:204,headers:cors()});
   const url=new URL(request.url), path=url.pathname;
   if(path.startsWith("/auth/"))return authProxy(request,path.slice(5));
-  if(path==="/health"||path==="/")return json({ok:true,service:"walletapi",version:"1.0.0"});
+  if(path==="/health"||path==="/")return json({ok:true,service:"walletapi",version:"1.0.1"});
   let user;
   try{user=await requireUser(request)}catch(e){return bad(e.message||"Authentification requise",e.status||401,"UNAUTHORIZED")}
   try{
