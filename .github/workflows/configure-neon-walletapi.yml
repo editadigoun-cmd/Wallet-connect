@@ -1,4 +1,5 @@
 name: Deploy Wallet Connect backend
+# Provider discovery deployment trigger
 
 on:
   workflow_dispatch:
