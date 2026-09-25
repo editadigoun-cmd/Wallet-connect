@@ -488,7 +488,7 @@ async function transactionDetail(request,user,reference) {
   return json({ok:true,transaction:q.rows[0]});
 }
 async function me(user) {
-  const r=await pool.query(`SELECT u.id,u.email,u.full_name,u.phone,u.country_code,u.status,u.kyc_status,w.id wallet_id,w.currency,w.balance FROM public.users u JOIN public.wallets w ON w.user_id=u.id WHERE u.id=$1`,[user.id]);
+  const r=await pool.query(`SELECT u.id,u.email,u.full_name,u.phone,u.country_code,u.status,u.kyc_status,u.wallet_code,w.id wallet_id,w.currency,w.balance FROM public.users u JOIN public.wallets w ON w.user_id=u.id WHERE u.id=$1`,[user.id]);
   if(!r.rows[0])return bad("Profil introuvable",404);
   const tx=await pool.query(`SELECT id,reference,type,direction,amount,currency,status,description,created_at FROM public.transactions WHERE wallet_id=$1 ORDER BY created_at DESC LIMIT 20`,[r.rows[0].wallet_id]);
   const fee=await pool.query(
