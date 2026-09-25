@@ -93,10 +93,14 @@ async function requireUser(request) {
       [authUser.id, authUser.email, authUser.name || null]
     );
     const user = result.rows[0];
+    const currency = COUNTRY_CURRENCY[user.country_code] || DEFAULT_CURRENCY;
     await client.query(
       `INSERT INTO public.wallets (user_id,currency,balance,status)
-       VALUES ($1,COALESCE($2,'XAF'),0,'active') ON CONFLICT (user_id) DO NOTHING`,
-      [user.id, COUNTRY_CURRENCY[user.country_code] || DEFAULT_CURRENCY]
+       VALUES ($1,$2,0,'active')
+       ON CONFLICT (user_id) DO UPDATE
+       SET currency = CASE WHEN public.wallets.balance = 0 THEN EXCLUDED.currency ELSE public.wallets.currency END,
+           updated_at = CASE WHEN public.wallets.balance = 0 THEN now() ELSE public.wallets.updated_at END`,
+      [user.id, currency]
     );
     await client.query("COMMIT"); return user;
   } catch (e) { await client.query("ROLLBACK"); throw e; } finally { client.release(); }
@@ -237,7 +241,7 @@ async function withdrawalStatus(request,user,reference) {
 async function updateProfile(request,user) {
   const b=await body(request),country=String(b.country_code||"").trim().toUpperCase(),phone=normalizePhone(b.phone,country);
   if(!/^[A-Z]{2}$/.test(country))return bad("Pays invalide");
-  const allowed=await pool.query("SELECT 1 FROM public.payment_methods WHERE country_code=$1 AND active=true AND (supports_topup=true OR supports_withdrawal=true) LIMIT 1",[country]),c=await pool.connect();
+  const allowed=await pool.query("SELECT 1 FROM public.payment_methods WHERE country_code=$1 AND active=true AND (supports_topup=true OR supports_withdrawal=true) LIMIT 1"),c=await pool.connect();
   try{await c.query("BEGIN");const wallet=await c.query("SELECT id,balance,currency FROM public.wallets WHERE user_id=$1 FOR UPDATE",[user.id]);const targetCurrency=COUNTRY_CURRENCY[country]||DEFAULT_CURRENCY;
     if(wallet.rows[0]&&Number(wallet.rows[0].balance)!==0&&wallet.rows[0].currency!==targetCurrency){await c.query("ROLLBACK");return bad("Impossible de changer de devise avec un solde non nul",409,"CURRENCY_CHANGE_REQUIRES_ZERO_BALANCE");}
     const r=await c.query(`UPDATE public.users SET country_code=$1,phone=COALESCE(NULLIF($2,''),phone),updated_at=now() WHERE id=$3 RETURNING id,email,full_name,phone,country_code,status,kyc_status`,[country,phone,user.id]);
