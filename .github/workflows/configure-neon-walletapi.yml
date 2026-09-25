@@ -24,8 +24,8 @@ jobs:
           set -euo pipefail
           cd backend/walletapi
           npm install --omit=dev
-          zip -qr ../../../walletapi.zip .
-          cd ../../..
+          zip -qr ../../walletapi.zip .
+          cd ../..
           test -s walletapi.zip
 
       - name: Deploy Wallet Connect API to Neon
