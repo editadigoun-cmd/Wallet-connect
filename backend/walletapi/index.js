@@ -295,6 +295,18 @@ async function updateProfile(request,user) {
     await c.query(`UPDATE public.wallets SET currency=$1,updated_at=now() WHERE user_id=$2 AND balance=0 AND currency<>$1`,[targetCurrency,user.id]); if(!r.rows[0])return bad("Profil introuvable",404,"NOT_FOUND"); await c.query("COMMIT");return json({ok:true,user:r.rows[0],payment_method_available:allowed});
   }catch(e){await c.query("ROLLBACK");throw e}finally{c.release();}
 }
+async function transactionDetail(request,user,reference) {
+  const q=await pool.query(
+    `SELECT t.id,t.reference,t.type,t.direction,t.amount,t.currency,t.status,t.description,t.metadata,t.created_at,t.completed_at
+     FROM public.transactions t
+     JOIN public.wallets w ON w.id=t.wallet_id
+     WHERE t.reference=$1 AND w.user_id=$2
+     LIMIT 1`,
+    [reference,user.id]
+  );
+  if(!q.rows[0])return bad("Transaction introuvable",404,"NOT_FOUND");
+  return json({ok:true,transaction:q.rows[0]});
+}
 async function me(user) {
   const r=await pool.query(`SELECT u.id,u.email,u.full_name,u.phone,u.country_code,u.status,u.kyc_status,w.id wallet_id,w.currency,w.balance FROM public.users u JOIN public.wallets w ON w.user_id=u.id WHERE u.id=$1`,[user.id]);
   if(!r.rows[0])return bad("Profil introuvable",404);
@@ -316,7 +328,7 @@ async function handler(request) {
   if(path==="/health"||path==="/")return json({ok:true,service:"walletapi",version:"1.0.2"});
   let user; try{user=await requireUser(request)}catch(e){return bad(e.message||"Authentification requise",e.status||401,"UNAUTHORIZED")}
   try{
-    if(request.method==="GET"&&path==="/me")return me(user);
+    if(request.method==="GET"&&path==="/me")return me(user);\n    if(request.method==="GET"&&path.startsWith("/transactions/"))return transactionDetail(request,user,path.split("/")[2]);
     if(request.method==="POST"&&path==="/profile")return updateProfile(request,user);
     if(request.method==="POST"&&path==="/transfer")return transfer(request,user);
     if(request.method==="POST"&&path==="/topups")return createTopup(request,user);
