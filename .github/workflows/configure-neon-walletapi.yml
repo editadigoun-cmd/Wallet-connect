@@ -22,6 +22,46 @@ jobs:
       - name: Install Neon CLI
         run: npm install -g neon@latest
 
+      - name: Restore payout provider discovery
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('backend/walletapi/index.js')
+          s = p.read_text()
+          marker = 'async function activePaymentMethod(country){'
+          fallback = '''async function configuredWithdrawalFallback(country){
+            const iso2=String(country||"").toUpperCase();
+            const rows=await pool.query(`SELECT provider,method_name,currency FROM public.payment_methods WHERE country_code=$1 AND active=true AND supports_withdrawal=true ORDER BY provider`,[iso2]);
+            return rows.rows.map(x=>({correspondent:x.provider,provider:x.provider,currency:x.currency||COUNTRY_CURRENCY[iso2]||DEFAULT_CURRENCY,displayName:x.method_name||providerBrand(x.provider).name,nameDisplayedToCustomer:x.method_name||providerBrand(x.provider).name,operationTypes:[{operationType:"PAYOUT"}],activeOperation:{operationType:"PAYOUT"},status:"CONFIGURED"}));
+          }
+          '''
+          if 'async function configuredWithdrawalFallback' not in s:
+              s = s.replace(marker, fallback + '\n' + marker, 1)
+          old = '''async function availableProviders(country,kind){
+            if(String(kind).toUpperCase()==="PAYOUT"){
+              const v2=await v2PayoutProviders(country);
+              if(v2.length)return v2;
+            }
+            return await knownGoodAvailableProviders(country,kind);
+          }'''
+          new = '''async function availableProviders(country,kind){
+            if(String(kind).toUpperCase()==="PAYOUT"){
+              const v2=await v2PayoutProviders(country);
+              if(v2.length)return v2;
+              const configured=await knownGoodAvailableProviders(country,kind);
+              if(configured.length)return configured;
+              return await configuredWithdrawalFallback(country);
+            }
+            return await knownGoodAvailableProviders(country,kind);
+          }'''
+          if old not in s:
+              raise SystemExit('availableProviders block not found')
+          s = s.replace(old, new, 1)
+          p.write_text(s)
+          PY
+
       - name: Check backend syntax
         run: node --check backend/walletapi/index.js
 
