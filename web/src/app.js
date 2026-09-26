@@ -8,6 +8,7 @@ import {render} from "./ui/render.js";
 import {initAuth} from "./features/auth.js?v=20260925b";
 import {initWallet} from "./features/wallet.js";
 import {initTransfers} from "./features/transfers.js";
+import {initMobileMoneySend} from "./features/mobile-money-send.js";
 import {initProfile} from "./features/profile.js";
 
 window.__walletState=state;
@@ -50,6 +51,7 @@ function initUi(){
   initAuth({fillCountries,toast,enterApp});
   initWallet({toast,refresh});
   initTransfers({toast,refresh});
+  initMobileMoneySend({toast,refresh});
   initProfile({toast,render,show});
 
   document.getElementById("toggleBalance").addEventListener("click",()=>{
