@@ -35,21 +35,41 @@ export function initAuth({fillCountries,toast,enterApp}){
     error.style.display="none";
     button.disabled=true;
     try{
-      const email=el("authEmail").value.trim();
+      const email=el("authEmail").value.trim().toLowerCase();
       const password=el("authPassword").value;
       if(state.authMode==="signup"){
         const country_code=el("authCountry").value;
+        const name=el("authName").value.trim();
         if(!country_code)throw new Error("Sélectionne ton pays");
-        await authApi.signUp({email,password,name:el("authName").value.trim(),country_code});
-        await authApi.updateProfile({country_code});
-        toast("Compte créé");
+
+        // Complete the authentication session before writing the Wallet Connect profile.
+        // This also recovers accounts created by an earlier interrupted registration.
+        let created=true;
+        try{
+          await authApi.signUp({email,password,name,country_code});
+        }catch(signupError){
+          const message=String(signupError?.message||"").toLowerCase();
+          const duplicate=signupError?.status===409 || signupError?.code==="USER_ALREADY_EXISTS" || message.includes("existe déjà") || message.includes("already exists") || message.includes("already registered");
+          if(!duplicate)throw signupError;
+          created=false;
+        }
+
+        // sign-in guarantees a usable session after signup and repairs a partial signup.
+        await authApi.signIn(email,password);
+        await authApi.updateProfile({country_code,name});
+        toast(created?"Compte créé":"Compte récupéré");
       }else{
         await authApi.signIn(email,password);
         toast("Connexion réussie");
       }
       await enterApp();
     }catch(errorValue){
-      error.textContent=errorValue?.message||"Une erreur est survenue.";
+      const message=String(errorValue?.message||"");
+      if(errorValue?.status===401 && state.authMode==="signup"){
+        error.textContent="Impossible de finaliser l'inscription. Vérifie ton adresse e-mail et ton mot de passe, puis réessaie.";
+      }else{
+        error.textContent=message||"Une erreur est survenue.";
+      }
       error.style.display="block";
     }finally{
       button.disabled=false;
