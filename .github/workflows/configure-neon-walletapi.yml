@@ -39,7 +39,7 @@ jobs:
             --branch br-fragrant-moon-b4qxibei \
             --src backend/walletapi/index.js \
             --env "PAWAPAY_API_TOKEN=$PAWAPAY_API_TOKEN" \
-            --env "PAWAPAY_CORRESPONDENT=MTN_MOMO_COG"
+            --env "PAWAPAY_CORRESPONDENT=MTN_MOMO_BEN"
 
       - name: Verify deployed function health
         shell: bash
