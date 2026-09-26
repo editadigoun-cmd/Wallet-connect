@@ -28,7 +28,56 @@ async function getSession(request){const cookie=cookieHeader(request);if(!cookie
 async function requireUser(request){const session=await getSession(request),authUser=session?.user;if(!authUser?.id||!authUser?.email)throw Object.assign(new Error("Authentification requise"),{status:401});const client=await pool.connect();try{await client.query("BEGIN");const result=await client.query(`INSERT INTO public.users (auth_user_id,email,full_name,status,kyc_status,country_code) VALUES ($1,$2,$3,'active','not_started',NULL) ON CONFLICT (auth_user_id) DO UPDATE SET email=EXCLUDED.email,full_name=COALESCE(EXCLUDED.full_name,public.users.full_name),updated_at=now() RETURNING id,email,full_name,phone,country_code,status,kyc_status,wallet_code`,[authUser.id,authUser.email,authUser.name||null]);const user=result.rows[0];const currency=COUNTRY_CURRENCY[user.country_code]||DEFAULT_CURRENCY;await client.query(`INSERT INTO public.wallets (user_id,currency,balance,status) VALUES ($1,$2,0,'active') ON CONFLICT (user_id) DO UPDATE SET currency=CASE WHEN public.wallets.balance=0 THEN EXCLUDED.currency ELSE public.wallets.currency END,updated_at=CASE WHEN public.wallets.balance=0 THEN now() ELSE public.wallets.updated_at END`,[user.id,currency]);await client.query("COMMIT");return user}catch(e){await client.query("ROLLBACK");throw e}finally{client.release()}}
 async function pawapay(path,method,payload){const token=process.env.PAWAPAY_API_TOKEN;if(!token)throw new Error("PawaPay non configuré");const r=await fetch(PAWAPAY_BASE+path,{method,headers:{Authorization:"Bearer "+token,"Content-Type":"application/json"},body:payload===undefined?undefined:JSON.stringify(payload),signal:AbortSignal.timeout(30000)});const text=await r.text();let data;try{data=JSON.parse(text)}catch{data={raw:text}}return{ok:r.ok,status:r.status,data}}
 async function pawapayV1(path,method,payload){const token=process.env.PAWAPAY_API_TOKEN;if(!token)throw new Error("PawaPay non configuré");const r=await fetch(PAWAPAY_V1_BASE+path,{method,headers:{Authorization:"Bearer "+token,"Content-Type":"application/json"},body:payload===undefined?undefined:JSON.stringify(payload),signal:AbortSignal.timeout(30000)});const text=await r.text();let data;try{data=JSON.parse(text)}catch{data={raw:text}}return{ok:r.ok,status:r.status,data}}
-async function availableProviders(country,kind){const iso2=String(country||"").toUpperCase();const iso3=COUNTRY_ISO3[iso2]||iso2;const aliases=new Set([iso2,iso3]);const active=await pawapayV1("/active-conf","GET");if(!active.ok){console.error("PAWAPAY_ACTIVE_CONF_ERROR",active.status,active.data);return[];}const countries=Array.isArray(active.data?.countries)?active.data.countries:(Array.isArray(active.data)?active.data:[]);const cc=countries.find(x=>aliases.has(String(x.country||x.countryCode||x.iso3||"").toUpperCase()));const configuredList=Array.isArray(cc?.correspondents)?cc.correspondents:(Array.isArray(cc?.providers)?cc.providers:[]);const configured=configuredList.map(x=>{const correspondent=x.correspondent||x.provider||x.code;const ops=Array.isArray(x.operationTypes)?x.operationTypes.map(o=>typeof o==="string"?{operationType:o}:o).filter(Boolean):[];const op=operationType({operationTypes:ops},kind);if(!correspondent||!op)return null;const brand=providerBrand(correspondent);return {...x,correspondent,provider:correspondent,currency:x.currency||COUNTRY_CURRENCY[iso2]||DEFAULT_CURRENCY,displayName:x.displayName||x.name||brand.name,logo:x.logo||x.logoUrl||brand.logo,operationTypes:ops,activeOperation:op};}).filter(Boolean);if(!configured.length)return[];const live=await pawapay("/availability?country="+encodeURIComponent(iso3)+"&operationType="+encodeURIComponent(kind),"GET");if(!live.ok){console.error("PAWAPAY_AVAILABILITY_ERROR",live.status,live.data);return configured.map(x=>({...x,status:"CONFIGURED"}));}const raw=live.data;const availabilityCountries=Array.isArray(raw)?raw:(Array.isArray(raw?.countries)?raw.countries:(raw?.country?[raw]:[]));const ac=availabilityCountries.find(x=>aliases.has(String(x.country||x.countryCode||x.iso3||"").toUpperCase()));const available=Array.isArray(ac?.providers)?ac.providers:(Array.isArray(ac?.correspondents)?ac.correspondents:(Array.isArray(raw?.providers)?raw.providers:[]));if(!available.length)return configured.map(x=>({...x,status:"CONFIGURED"}));return configured.map(cfg=>{const liveProvider=available.find(x=>(x.provider||x.correspondent||x.code)===cfg.correspondent);const liveOps=Array.isArray(liveProvider?.operationTypes)?liveProvider.operationTypes.map(o=>typeof o==="string"?{operationType:o}:o):[];const liveOp=operationType({operationTypes:liveOps},kind);const status=String(liveOp?.status||"CONFIGURED").toUpperCase();return {...cfg,status,operationTypes:liveOps.length?liveOps:cfg.operationTypes};}).filter(x=>x.status==="OPERATIONAL"||x.status==="CONFIGURED");}
+async function knownGoodAvailableProviders(country,kind){const iso2=String(country||"").toUpperCase();const iso3=COUNTRY_ISO3[iso2]||iso2;const aliases=new Set([iso2,iso3]);const active=await pawapayV1("/active-conf","GET");if(!active.ok){console.error("PAWAPAY_ACTIVE_CONF_ERROR",active.status,active.data);return[];}const countries=Array.isArray(active.data?.countries)?active.data.countries:(Array.isArray(active.data)?active.data:[]);const cc=countries.find(x=>aliases.has(String(x.country||x.countryCode||x.iso3||"").toUpperCase()));const configuredList=Array.isArray(cc?.correspondents)?cc.correspondents:(Array.isArray(cc?.providers)?cc.providers:[]);const configured=configuredList.map(x=>{const correspondent=x.correspondent||x.provider||x.code;const ops=Array.isArray(x.operationTypes)?x.operationTypes.map(o=>typeof o==="string"?{operationType:o}:o).filter(Boolean):[];const op=operationType({operationTypes:ops},kind);if(!correspondent||!op)return null;const brand=providerBrand(correspondent);return {...x,correspondent,provider:correspondent,currency:x.currency||COUNTRY_CURRENCY[iso2]||DEFAULT_CURRENCY,displayName:x.displayName||x.name||brand.name,logo:x.logo||x.logoUrl||brand.logo,operationTypes:ops,activeOperation:op};}).filter(Boolean);if(!configured.length)return[];const live=await pawapay("/availability?country="+encodeURIComponent(iso3)+"&operationType="+encodeURIComponent(kind),"GET");if(!live.ok){console.error("PAWAPAY_AVAILABILITY_ERROR",live.status,live.data);return configured.map(x=>({...x,status:"CONFIGURED"}));}const raw=live.data;const availabilityCountries=Array.isArray(raw)?raw:(Array.isArray(raw?.countries)?raw.countries:(raw?.country?[raw]:[]));const ac=availabilityCountries.find(x=>aliases.has(String(x.country||x.countryCode||x.iso3||"").toUpperCase()));const available=Array.isArray(ac?.providers)?ac.providers:(Array.isArray(ac?.correspondents)?ac.correspondents:(Array.isArray(raw?.providers)?raw.providers:[]));if(!available.length)return configured.map(x=>({...x,status:"CONFIGURED"}));return configured.map(cfg=>{const liveProvider=available.find(x=>(x.provider||x.correspondent||x.code)===cfg.correspondent);const liveOps=Array.isArray(liveProvider?.operationTypes)?liveProvider.operationTypes.map(o=>typeof o==="string"?{operationType:o}:o):[];const liveOp=operationType({operationTypes:liveOps},kind);const status=String(liveOp?.status||"CONFIGURED").toUpperCase();return {...cfg,status,operationTypes:liveOps.length?liveOps:cfg.operationTypes};}).filter(x=>x.status==="OPERATIONAL"||x.status==="CONFIGURED");}
+
+async function v2PayoutProviders(country){
+  const iso2=String(country||"").toUpperCase();
+  const iso3=COUNTRY_ISO3[iso2]||iso2;
+  const aliases=new Set([iso2,iso3]);
+  const active=await pawapay("/active-conf","GET");
+  if(!active.ok)return [];
+  const countries=Array.isArray(active.data?.countries)?active.data.countries:(Array.isArray(active.data)?active.data:[]);
+  const cc=countries.find(x=>aliases.has(String(x.country||x.countryCode||x.iso3||"").toUpperCase()));
+  const providers=Array.isArray(cc?.providers)?cc.providers:[];
+  const configured=[];
+  for(const p of providers){
+    const correspondent=p.provider||p.correspondent||p.code;
+    if(!correspondent)continue;
+    const currencies=Array.isArray(p.currencies)?p.currencies:[];
+    for(const cur of currencies){
+      const currency=cur.currency||COUNTRY_CURRENCY[iso2]||DEFAULT_CURRENCY;
+      const rawOps=cur.operationTypes;
+      const ops=Array.isArray(rawOps)?rawOps.map(o=>typeof o==="string"?{operationType:o}:o):Object.entries(rawOps||{}).map(([k,v])=>({operationType:k,...(v&&typeof v==="object"?v:{})}));
+      const op=ops.find(o=>String(o.operationType||o.type||"").toUpperCase()==="PAYOUT");
+      if(!op)continue;
+      const brand=providerBrand(correspondent);
+      configured.push({...p,correspondent,provider:correspondent,currency,displayName:p.nameDisplayedToCustomer||p.displayName||p.name||brand.name,logo:p.logo||p.logoUrl||brand.logo,operationTypes:ops,activeOperation:op,status:"CONFIGURED"});
+    }
+  }
+  if(!configured.length)return [];
+  const live=await pawapay("/availability?country="+encodeURIComponent(iso3)+"&operationType=PAYOUT","GET");
+  if(!live.ok)return configured;
+  const raw=live.data;
+  const buckets=Array.isArray(raw)?raw:(Array.isArray(raw?.countries)?raw.countries:(raw?.country?[raw]:[]));
+  const bucket=buckets.find(x=>aliases.has(String(x.country||x.countryCode||x.iso3||"").toUpperCase()));
+  const liveProviders=Array.isArray(bucket?.providers)?bucket.providers:(Array.isArray(bucket?.correspondents)?bucket.correspondents:(Array.isArray(raw?.providers)?raw.providers:[]));
+  if(!liveProviders.length)return configured;
+  return configured.map(cfg=>{
+    const lp=liveProviders.find(x=>(x.provider||x.correspondent||x.code)===cfg.correspondent);
+    const ops=Array.isArray(lp?.operationTypes)?lp.operationTypes.map(o=>typeof o==="string"?{operationType:o}:o):[];
+    const op=ops.find(o=>String(o.operationType||o.type||"").toUpperCase()==="PAYOUT");
+    const status=String(op?.status||"CONFIGURED").toUpperCase();
+    return {...cfg,status,operationTypes:ops.length?ops:cfg.operationTypes};
+  }).filter(x=>x.status==="OPERATIONAL"||x.status==="CONFIGURED");
+}
+
+async function availableProviders(country,kind){
+  if(String(kind).toUpperCase()==="PAYOUT"){
+    const v2=await v2PayoutProviders(country);
+    if(v2.length)return v2;
+  }
+  return await knownGoodAvailableProviders(country,kind);
+}
 async function activePaymentMethod(country){const providers=await availableProviders(country,"DEPOSIT");const p=providers[0];return p?{country_code:country,provider:p.correspondent,method_code:p.correspondent,currency:p.currency}:null;}
 async function feeConfig(operation,country,currency){const q=await pool.query(`SELECT fee_type,fee_value FROM public.fee_settings WHERE operation=$1 AND active=true AND currency=$2 AND (country_code=$3 OR country_code IS NULL) ORDER BY CASE WHEN country_code=$3 THEN 0 ELSE 1 END LIMIT 1`,[operation,currency,country]);if(q.rows[0])return q.rows[0];if(operation==="topup")return{fee_type:"percentage",fee_value:7};return null;}
 function calculateFee(amount,config){if(!config)return 0;const value=Number(config.fee_value||0);if(config.fee_type==="percentage")return Math.round(amount*value/100);return Math.max(0,Math.round(value));}
