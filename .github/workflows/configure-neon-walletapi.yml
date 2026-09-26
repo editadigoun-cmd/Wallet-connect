@@ -59,6 +59,11 @@ jobs:
           if old not in s:
               raise SystemExit('availableProviders block not found')
           s = s.replace(old, new, 1)
+          broken = "VALUES($1,$2,$3,$4,$5,$6,'processing','mobile_money',$7,$8,$9) RETURNING *"
+          fixed = "VALUES($1,$2,$3,$4,$5,$6,'processing','mobile_money',$7,$8,$9,$10) RETURNING *"
+          if broken not in s:
+              raise SystemExit('withdrawal INSERT pattern not found')
+          s = s.replace(broken, fixed, 1)
           p.write_text(s)
           PY
 
