@@ -45,7 +45,7 @@
       <div class="mini-stat"><div><strong>Total débité</strong><span>Montant + frais d'envoi</span></div><strong id="sendTotal">0 XOF</strong></div>
       <div class="mini-stat"><div><strong>Mobile Money</strong><span>Uniquement si le portefeuille est insuffisant</span></div><strong id="sendFunding">Aucun prélèvement Mobile Money</strong></div>
       <button class="primary" type="submit">Continuer</button>
-      <div class="notice">Le transfert réel sera exécuté par le backend sécurisé. Aucun secret PawaPay n'est stocké dans cette interface.</div>
+      <div class="notice">Ton envoi est traité de manière sécurisée.</div>
     </form>
   </div>
 </section>
@@ -74,6 +74,8 @@
       <div class="field"><label>Montant</label><input id="topupAmount" type="number" min="1" required placeholder="Montant"></div>
       <div class="field"><label>Numéro de téléphone</label><input id="topupPhone" type="tel" inputmode="numeric" required placeholder="Numéro Mobile Money"></div>
       <div class="field"><label>Moyen de paiement</label><div id="topupProviders" class="provider-grid"></div><select id="topupProvider" class="provider-select" aria-hidden="true" tabindex="-1"><option value="">Sélectionner</option></select></div>
+      <div class="mini-stat"><div><strong>Frais de service</strong><span>7 % du montant</span></div><strong id="topupFee">0 XOF</strong></div>
+      <div class="mini-stat"><div><strong>Total débité</strong><span>Montant + frais</span></div><strong id="topupTotal">0 XOF</strong></div>
       <button class="primary" type="submit">Continuer</button>
     </form>
   </div>
@@ -87,10 +89,12 @@
       <div class="field"><label>Montant</label><input id="withdrawAmount" type="number" min="1" required placeholder="Montant"></div>
       <div class="field"><label>Numéro de téléphone</label><input id="withdrawPhone" type="tel" inputmode="numeric" required placeholder="Numéro Mobile Money"></div>
       <div class="field"><label>Moyen de retrait</label><div id="withdrawProviders" class="provider-grid"></div><select id="withdrawProvider" class="provider-select" aria-hidden="true" tabindex="-1"><option value="">Sélectionner</option></select></div>
+      <div class="mini-stat"><div><strong>Frais de retrait</strong><span>Frais Wallet Connect</span></div><strong id="withdrawFeeDetail">0 XOF</strong></div>
+      <div class="mini-stat"><div><strong>Montant reçu</strong><span>Somme envoyée vers Mobile Money</span></div><strong id="withdrawNet">0 XOF</strong></div>
       <button class="secondary" type="submit">Continuer</button>
     </form>
   </div>
-  <div class="notice">Les frais et le montant net sont affichés avant la confirmation lorsque la configuration du pays les définit.</div>
+  <div class="notice">Aucun frais n’est ajouté au retrait. Le montant affiché correspond au montant reçu.</div>
 </section>
 
 <section id="profile" class="screen">
@@ -102,7 +106,7 @@
     <button class="menu-item" type="button" id="supportBtn"><div class="mi">?</div><span>Aide & support</span><em>›</em></button>
     <button class="menu-item" type="button" id="logoutBtn"><div class="mi">↪</div><span>Se déconnecter</span><em>›</em></button>
   </div></div>
-  <div class="notice">Version MVP • Architecture prévue pour une application mobile native et un backend sécurisé.</div>
+  <div class="notice">Paiements sécurisés et protection de tes informations.</div>
 </section>
 
 <div class="footer" id="footer">Wallet Connect • Paiements sécurisés</div>
