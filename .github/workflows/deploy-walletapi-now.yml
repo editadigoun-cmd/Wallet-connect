@@ -1,0 +1,33 @@
+name: Deploy Wallet Connect API now
+on:
+  push:
+    paths:
+      - '.github/workflows/deploy-walletapi-now.yml'
+permissions:
+  contents: write
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+      PAWAPAY_API_TOKEN: ${{ secrets.PAWAPAY_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm install -g neon@latest
+      - run: node --check backend/walletapi/index.js
+      - run: npm install --omit=dev --prefix backend/walletapi
+      - name: Deploy
+        run: |
+          set -euo pipefail
+          test -n "$NEON_API_KEY"
+          test -n "$PAWAPAY_API_TOKEN"
+          neon functions deploy walletapi --project-id green-violet-58373553 --branch br-fragrant-moon-b4qxibei --src backend/walletapi/index.js --env "PAWAPAY_API_TOKEN=$PAWAPAY_API_TOKEN" --env "PAWAPAY_CORRESPONDENT=MTN_MOMO_COG"
+      - name: Health check
+        run: curl --fail-with-body -sS --retry 8 --retry-delay 2 https://br-fragrant-moon-b4qxibei-walletapi.compute.c-6.us-east-2.aws.neon.tech/health
+      - name: Remove temporary workflow
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm .github/workflows/deploy-walletapi-now.yml
+          git commit -m 'Remove temporary backend deploy workflow'
+          git push
