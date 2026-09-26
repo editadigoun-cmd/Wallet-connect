@@ -22,6 +22,8 @@ jobs:
           start=s.index('async function availableProviders(country,kind){')
           end=s.index(marker,start)
           old=s[start:end]
+          if 'async function v2PayoutProviders(country)' in s:
+              raise SystemExit('Payout V2 patch already applied')
           new=r'''async function v2PayoutProviders(country){
             const iso2=String(country||"").toUpperCase();
             const iso3=COUNTRY_ISO3[iso2]||iso2;
@@ -72,7 +74,6 @@ jobs:
             return await __knownGoodAvailableProviders(country,kind);
           }
           '''
-          # Preserve the original function under a new name before replacing its declaration.
           s=s[:start]+old.replace('async function availableProviders(country,kind){','async function __knownGoodAvailableProviders(country,kind){',1)+"\n"+new+s[end:]
           p.write_text(s)
           PY
