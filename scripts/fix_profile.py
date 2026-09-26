@@ -3,7 +3,7 @@ import re
 
 p = Path("backend/walletapi/index.js")
 s = p.read_text()
-pattern = r"async function requireUser\\(request\\)\\{.*?\\}\\nasync function pawapay"
+pattern = r"async function requireUser\(request\)\{.*?\}\nasync function pawapay"
 m = re.search(pattern, s, re.S)
 if not m:
     raise SystemExit("requireUser block not found")
