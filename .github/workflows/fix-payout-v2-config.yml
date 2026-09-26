@@ -65,16 +65,15 @@ jobs:
             }).filter(x=>x.status==="OPERATIONAL"||x.status==="CONFIGURED");
           }
 
-          const __knownGoodAvailableProviders=availableProviders;
           async function availableProviders(country,kind){
             if(String(kind).toUpperCase()==="PAYOUT"){
               const v2=await v2PayoutProviders(country);
               if(v2.length)return v2;
             }
-            return await __knownGoodAvailableProviders(country,kind);
+            return await knownGoodAvailableProviders(country,kind);
           }
           '''
-          s=s[:start]+old.replace('async function availableProviders(country,kind){','async function __knownGoodAvailableProviders(country,kind){',1)+"\n"+new+s[end:]
+          s=s[:start]+old.replace('async function availableProviders(country,kind){','async function knownGoodAvailableProviders(country,kind){',1)+"\n"+new+s[end:]
           p.write_text(s)
           PY
       - name: Verify syntax
